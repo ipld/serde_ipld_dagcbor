@@ -74,57 +74,6 @@ mod std_tests {
     }
 
     #[test]
-    fn test_object_list_keys() {
-        let mut object = BTreeMap::new();
-        object.insert(vec![0i64], ());
-        object.insert(vec![100i64], ());
-        object.insert(vec![-1i64], ());
-        object.insert(vec![-2i64], ());
-        object.insert(vec![0i64, 0i64], ());
-        object.insert(vec![0i64, -1i64], ());
-        let vec = to_vec(&serde_cbor::value::to_value(object.clone()).unwrap()).unwrap();
-        assert_eq!(
-            vec![
-                166, 129, 0, 246, 129, 24, 100, 246, 129, 32, 246, 129, 33, 246, 130, 0, 0, 246,
-                130, 0, 32, 246
-            ],
-            vec
-        );
-        let test_object = from_slice(&vec[..]).unwrap();
-        assert_eq!(object, test_object);
-    }
-
-    #[test]
-    fn test_object_object_keys() {
-        use std::iter::FromIterator;
-        let mut object = BTreeMap::new();
-        let keys = vec![
-            vec!["a"],
-            vec!["b"],
-            vec!["c"],
-            vec!["d"],
-            vec!["aa"],
-            vec!["a", "aa"],
-        ]
-        .into_iter()
-        .map(|v| BTreeMap::from_iter(v.into_iter().map(|s| (s.to_owned(), ()))));
-
-        for key in keys {
-            object.insert(key, ());
-        }
-        let vec = to_vec(&serde_cbor::value::to_value(object.clone()).unwrap()).unwrap();
-        assert_eq!(
-            vec![
-                166, 161, 97, 97, 246, 246, 161, 97, 98, 246, 246, 161, 97, 99, 246, 246, 161, 97,
-                100, 246, 246, 161, 98, 97, 97, 246, 246, 162, 97, 97, 246, 98, 97, 97, 246, 246
-            ],
-            vec
-        );
-        let test_object = from_slice(&vec[..]).unwrap();
-        assert_eq!(object, test_object);
-    }
-
-    #[test]
     fn test_float() {
         let vec = to_vec(&12.3f64).unwrap();
         assert_eq!(vec, b"\xfb@(\x99\x99\x99\x99\x99\x9a");
@@ -133,25 +82,25 @@ mod std_tests {
     #[test]
     fn test_f32() {
         let vec = to_vec(&4000.5f32).unwrap();
-        assert_eq!(vec, b"\xfa\x45\x7a\x08\x00");
+        assert_eq!(vec, b"\xfb\x40\xaf\x41\x00\x00\x00\x00\x00");
     }
 
     #[test]
     fn test_infinity() {
-        let vec = to_vec(&::std::f64::INFINITY).unwrap();
-        assert_eq!(vec, b"\xf9|\x00");
+        let vec = to_vec(&::std::f64::INFINITY);
+        assert!(vec.is_err(), "Only finite numbers are supported.");
     }
 
     #[test]
     fn test_neg_infinity() {
-        let vec = to_vec(&::std::f64::NEG_INFINITY).unwrap();
-        assert_eq!(vec, b"\xf9\xfc\x00");
+        let vec = to_vec(&::std::f64::NEG_INFINITY);
+        assert!(vec.is_err(), "Only finite numbers are supported.");
     }
 
     #[test]
     fn test_nan() {
-        let vec = to_vec(&::std::f32::NAN).unwrap();
-        assert_eq!(vec, b"\xf9\x7e\x00");
+        let vec = to_vec(&::std::f32::NAN);
+        assert!(vec.is_err(), "Only finite numbers are supported.");
     }
 
     #[test]
@@ -248,7 +197,7 @@ mod std_tests {
     #[test]
     fn test_half() {
         let vec = to_vec(&42.5f32).unwrap();
-        assert_eq!(vec, b"\xF9\x51\x50");
+        assert_eq!(vec, b"\xfb\x40\x45\x40\x00\x00\x00\x00\x00");
         assert_eq!(from_slice::<f32>(&vec[..]).unwrap(), 42.5f32);
     }
 }

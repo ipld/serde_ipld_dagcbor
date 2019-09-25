@@ -3,7 +3,7 @@ extern crate serde_derive;
 
 #[cfg(feature = "std")]
 mod std_tests {
-    use serde_cbor;
+    use libipld_core::ipld::Ipld;
 
     use std::collections::BTreeMap;
 
@@ -20,10 +20,8 @@ mod std_tests {
         map: BTreeMap<String, String>,
         bytes: &'a [u8],
         array: Vec<String>,
-        unit_array: Vec<UnitStruct>,
     }
 
-    use serde_cbor::value::Value;
     use std::iter::FromIterator;
 
     #[test]
@@ -46,7 +44,6 @@ mod std_tests {
         let bytes = b"test byte string";
 
         let array = vec![format!("one"), format!("two"), format!("three")];
-        let unit_array = vec![UnitStruct, UnitStruct, UnitStruct];
 
         let data = Struct {
             tuple_struct,
@@ -54,31 +51,34 @@ mod std_tests {
             map,
             bytes,
             array,
-            unit_array,
         };
 
-        let value = serde_cbor::value::to_value(data.clone()).unwrap();
-        println!("{:?}", value);
+        let ipld = libipld_core::serde::to_ipld(data.clone()).unwrap();
+        println!("{:?}", ipld);
 
-        let data_ser = serde_cbor::to_vec(&value).unwrap();
-        let data_de_value: Value = serde_cbor::from_slice(&data_ser).unwrap();
+        let data_ser = serde_cbor::to_vec(&ipld).unwrap();
+        let data_de_ipld: Ipld = serde_cbor::from_slice(&data_ser).unwrap();
 
-        fn as_object(value: &Value) -> &BTreeMap<Value, Value> {
-            if let Value::Map(ref v) = value {
+        fn as_object(ipld: &Ipld) -> &BTreeMap<String, Ipld> {
+            if let Ipld::Map(ref v) = ipld {
                 return v;
             }
             panic!()
         }
 
-        for ((k1, v1), (k2, v2)) in as_object(&value)
-            .iter()
-            .zip(as_object(&data_de_value).iter())
-        {
+        for ((k1, v1), (k2, v2)) in as_object(&ipld).iter().zip(as_object(&data_de_ipld).iter()) {
             assert_eq!(k1, k2);
             assert_eq!(v1, v2);
         }
 
-        assert_eq!(value, data_de_value);
+        assert_eq!(ipld, data_de_ipld);
+    }
+
+    #[test]
+    fn unit_struct_not_supported() {
+        let unit_array = vec![UnitStruct, UnitStruct, UnitStruct];
+        let ipld = libipld_core::serde::to_ipld(unit_array);
+        assert!(ipld.is_err());
     }
 
     #[derive(Debug, Deserialize, Serialize)]

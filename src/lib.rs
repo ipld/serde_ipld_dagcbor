@@ -52,7 +52,7 @@
 //! ```
 //!
 //! There are a lot of options available to customize the format.
-//! To operate on untyped CBOR values have a look at the `Value` type.
+//! To operate on untyped CBOR values have a look at the [`libipld_core::ipld::Ipld`] type.
 //!
 //! # Type-based Serialization and Deserialization
 //! Serde provides a mechanism for low boilerplate serialization & deserialization of values to and
@@ -60,8 +60,6 @@
 //! the `serde::Serialize` trait. To be able to deserialize a piece of data, it must implement the
 //! `serde::Deserialize` trait. Serde provides an annotation to automatically generate the
 //! code for these traits: `#[derive(Serialize, Deserialize)]`.
-//!
-//! The CBOR API also provides an enum `serde_cbor::Value`.
 //!
 //! # Packed Encoding
 //! When serializing structs or enums in CBOR the keys or enum variant names will be serialized
@@ -101,11 +99,11 @@
 //!
 //! ```rust
 //! use serde_cbor::from_slice;
-//! use serde_cbor::value::Value;
+//! use libipld_core::ipld::Ipld;
 //!
 //! let slice = b"\x82\x01\xa1aaab";
-//! let value: Value = from_slice(slice).unwrap();
-//! println!("{:?}", value); // Array([U64(1), Object({String("a"): String("b")})])
+//! let value: Ipld = from_slice(slice).unwrap();
+//! println!("{:?}", value); // List([Integer(1), Map({"a": String("b")})])
 //! ```
 //!
 //! Serialize an object.
@@ -331,9 +329,6 @@ mod read;
 pub mod ser;
 mod write;
 
-#[cfg(feature = "std")]
-pub mod value;
-
 // Re-export the [items recommended by serde](https://serde.rs/conventions.html).
 #[doc(inline)]
 pub use crate::de::{Deserializer, StreamDeserializer};
@@ -362,7 +357,10 @@ pub use crate::ser::to_vec;
 #[doc(inline)]
 pub use crate::ser::to_writer;
 
-// Re-export the value type like serde_json
-#[cfg(feature = "std")]
-#[doc(inline)]
-pub use crate::value::Value;
+/// The CBOR tag that is used for CIDs.
+const CBOR_TAGS_CID: u8 = 42;
+
+/// Major type 6 (tags) together with tag 42, which is used for CIDs.
+/// CBOR TAG 42 consists of two bytes, the first byte is major type 6, and as 42 is > 23 and < 256,
+/// exactly 1 byte with value 42 follows. Hence the 16-bit value for major type 6 tag 42 is 0xd82a.
+const CBOR_TAGS_MAJOR_TYPE_AND_CID: u16 = 0xd82a;
