@@ -224,15 +224,7 @@ mod std_tests {
     fn test_self_describing() {
         let value: error::Result<Value> =
             de::from_slice(&[0xd9, 0xd9, 0xf7, 0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72]);
-        let expected = Value::Text("foobar".to_owned());
-        let strip_tags = |x: Value| {
-            if let Value::Tag(_, inner) = x {
-                *inner
-            } else {
-                x
-            }
-        };
-        assert_eq!(strip_tags(value.unwrap()), expected);
+        assert_eq!(value.unwrap(), Value::Text("foobar".to_owned()));
     }
 
     #[test]

@@ -51,8 +51,6 @@ pub enum Value {
     /// to establish canonical order may be slow and therefore insertion
     /// and retrieval of values will be slow too.
     Map(BTreeMap<Value, Value>),
-    /// Represents a tagged value
-    Tag(u64, Box<Value>),
     // The hidden variant allows the enum to be extended
     // with variants for tags and simple values.
     #[doc(hidden)]
@@ -144,7 +142,6 @@ impl Value {
                     1
                 }
             }
-            Tag(_, _) => 6,
             Float(_) => 7,
             Bytes(_) => 2,
             Text(_) => 3,
