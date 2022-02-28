@@ -782,43 +782,43 @@ where
     type SerializeStructVariant = ser::Impossible<Self::Ok, Self::Error>;
 
     fn serialize_bool(self, _value: bool) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_i8(self, _value: i8) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_i16(self, _value: i16) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_i32(self, _value: i32) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_i64(self, _value: i64) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_u8(self, _value: u8) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_u16(self, _value: u16) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_u32(self, _value: u32) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_u64(self, _value: u64) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_f32(self, _value: f32) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_f64(self, _value: f64) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_char(self, _value: char) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_str(self, _value: &str) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
 
     fn serialize_bytes(self, value: &[u8]) -> Result<Self::Ok> {
@@ -836,16 +836,16 @@ where
     }
 
     fn serialize_none(self) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_some<T: ?Sized + Serialize>(self, _value: &T) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_unit(self) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_unit_struct(self, _name: &str) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_unit_variant(
         self,
@@ -853,7 +853,7 @@ where
         _variant_index: u32,
         _variant: &str,
     ) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
 
     fn serialize_newtype_struct<T: ?Sized + Serialize>(
@@ -861,7 +861,7 @@ where
         _name: &str,
         _value: &T,
     ) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_newtype_variant<T: ?Sized + Serialize>(
         self,
@@ -870,20 +870,20 @@ where
         _variant: &str,
         _value: &T,
     ) -> Result<Self::Ok> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_tuple_struct(
         self,
         _name: &str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_tuple_variant(
         self,
@@ -892,13 +892,13 @@ where
         _variant: &str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_struct(self, _name: &str, _len: usize) -> Result<Self::SerializeStruct> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
     fn serialize_struct_variant(
         self,
@@ -907,6 +907,6 @@ where
         _variant: &str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        unreachable!();
+        Err(Error::message("unreachable"))
     }
 }

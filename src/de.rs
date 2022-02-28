@@ -1363,7 +1363,7 @@ where
     type Error = Error;
 
     fn deserialize_any<V: de::Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-        unreachable!()
+        Err(Error::message("Only bytes can be deserialized into a CID"))
     }
 
     #[inline]
@@ -1388,7 +1388,7 @@ where
                 let len = self.0.parse_u64()?;
                 usize::try_from(len).map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?
             }
-            _ => unreachable!(),
+            _ => Err(self.0.error(ErrorCode::UnexpectedCode))?,
         };
 
         match self.0.read.read(len)? {
@@ -1407,10 +1407,10 @@ where
         if name == CID_SERDE_PRIVATE_IDENTIFIER {
             self.deserialize_bytes(visitor)
         } else {
-            unreachable!(
+            Err(Error::message(format!(
                 "This deserializer must not be called on newtype structs other than one named `{}`",
                 CID_SERDE_PRIVATE_IDENTIFIER
-            );
+            )))?
         }
     }
 
