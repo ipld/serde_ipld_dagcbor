@@ -2,6 +2,7 @@
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
+use core::convert::TryFrom;
 
 #[cfg(feature = "std")]
 pub use crate::write::IoWrite;
@@ -11,7 +12,6 @@ use crate::error::{Error, Result};
 use crate::CBOR_TAGS_CID;
 use cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
 use serde::ser::{self, Serialize, SerializeMap};
-use std::convert::TryFrom;
 #[cfg(feature = "std")]
 use std::io;
 

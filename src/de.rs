@@ -1,13 +1,15 @@
 //! Deserialization.
 
+#[cfg(feature = "alloc")]
+use alloc::format;
 use cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
+use core::convert::TryFrom;
 use core::f32;
 use core::marker::PhantomData;
 use core::result;
 use core::str;
 use half::f16;
 use serde::{de, forward_to_deserialize_any};
-use std::convert::TryFrom;
 #[cfg(feature = "std")]
 use std::io;
 
