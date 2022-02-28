@@ -713,7 +713,7 @@ where
             0xbf => self.parse_indefinite_map(visitor),
 
             // Major type 6: optional semantic tagging of other major types
-            // Only tag 42 is supported, hence we refuse parsing any tags here.
+            // Only tag 42 is supported, hence we refuse parsing any other tags here.
             0xc0..=0xd7 => Err(self.error(ErrorCode::UnexpectedCode)),
             0xd8 => {
                 if self.parse_u8()? == CBOR_TAGS_CID {
