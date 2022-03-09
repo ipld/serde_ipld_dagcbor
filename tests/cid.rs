@@ -217,3 +217,12 @@ fn test_cid_in_kinded_enum_with_newtype() {
     let decoded_random_bytes: Result<Kinded, _> = from_slice(&random_bytes);
     assert!(decoded_random_bytes.is_err());
 }
+
+#[test]
+fn test_cid_empty_errors() {
+    // Tag 42 with zero bytes
+    let cbor_empty_cid = [0xd8, 0x2a, 0x40];
+
+    let decoded: Result<Cid, _> = from_slice(&cbor_empty_cid);
+    assert!(decoded.is_err());
+}

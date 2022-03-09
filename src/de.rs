@@ -1373,7 +1373,9 @@ where
     fn deserialize_bytes<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         // Match on the major type, it must be a byte string (major type 2)
         let len = match self.0.parse_u8()? {
-            byte @ 0x40..=0x57 => usize::try_from(byte - 0x40)
+            // CIDs always have a `0x00` prefix, hence they cannot be zero sized.
+            0x40 => Err(self.0.error(ErrorCode::LengthOutOfRange))?,
+            byte @ 0x41..=0x57 => usize::try_from(byte - 0x40)
                 .map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?,
             0x58 => {
                 let len = self.0.parse_u8()?;
