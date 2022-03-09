@@ -1,7 +1,9 @@
 // NOTE: This file should be kept in sync with README.md
 
 use serde_derive::{Deserialize, Serialize};
+#[cfg(feature = "std")]
 use std::error::Error;
+#[cfg(feature = "std")]
 use std::fs::File;
 
 // Types annotated with `Serialize` can be stored as CBOR.
@@ -13,6 +15,7 @@ struct Mascot {
     year_of_birth: u32,
 }
 
+#[cfg(feature = "std")]
 fn main() -> Result<(), Box<dyn Error>> {
     let ferris = Mascot {
         name: "Ferris".to_owned(),
@@ -37,3 +40,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[cfg(not(feature = "std"))]
+fn main() {}

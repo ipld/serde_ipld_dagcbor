@@ -238,6 +238,9 @@ impl ser::Error for Error {
     }
 }
 
+#[cfg(feature = "alloc")]
+impl ser::StdError for Error {}
+
 #[cfg(feature = "std")]
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {

@@ -1,11 +1,15 @@
 //! Deserialization.
 
+#[cfg(feature = "alloc")]
+use alloc::format;
+use cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
+use core::convert::TryFrom;
 use core::f32;
 use core::marker::PhantomData;
 use core::result;
 use core::str;
 use half::f16;
-use serde::de;
+use serde::{de, forward_to_deserialize_any};
 #[cfg(feature = "std")]
 use std::io;
 
@@ -20,8 +24,8 @@ use crate::read::Offset;
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use crate::read::SliceRead;
 pub use crate::read::{MutSliceRead, Read, SliceReadFixed};
-#[cfg(feature = "tags")]
-use crate::tags::set_tag;
+use crate::{CBOR_TAGS_CID, CBOR_TAGS_MAJOR_TYPE_AND_CID};
+
 /// Decodes a value from CBOR data in a slice.
 ///
 /// # Examples
@@ -401,27 +405,6 @@ where
         }
     }
 
-    #[cfg(feature = "tags")]
-    fn handle_tagged_value<V>(&mut self, tag: u64, visitor: V) -> Result<V::Value>
-    where
-        V: de::Visitor<'de>,
-    {
-        self.recursion_checked(|d| {
-            set_tag(Some(tag));
-            let r = visitor.visit_newtype_struct(d);
-            set_tag(None);
-            r
-        })
-    }
-
-    #[cfg(not(feature = "tags"))]
-    fn handle_tagged_value<V>(&mut self, _tag: u64, visitor: V) -> Result<V::Value>
-    where
-        V: de::Visitor<'de>,
-    {
-        self.recursion_checked(|de| de.parse_value(visitor))
-    }
-
     fn recursion_checked<F, T>(&mut self, f: F) -> Result<T>
     where
         F: FnOnce(&mut Deserializer<R>) -> Result<T>,
@@ -576,6 +559,13 @@ where
         self.parse_u64().map(|i| f64::from_bits(i))
     }
 
+    fn parse_cid<V>(&mut self, visitor: V) -> Result<V::Value>
+    where
+        V: de::Visitor<'de>,
+    {
+        self.recursion_checked(|de| visitor.visit_newtype_struct(&mut CidDeserializer(de)))
+    }
+
     // Don't warn about the `unreachable!` in case
     // exhaustive integer pattern matching is enabled.
     #[allow(unreachable_patterns)]
@@ -725,34 +715,25 @@ where
             0xbf => self.parse_indefinite_map(visitor),
 
             // Major type 6: optional semantic tagging of other major types
-            0xc0..=0xd7 => {
-                let tag = u64::from(byte) - 0xc0;
-                self.handle_tagged_value(tag, visitor)
-            }
+            // Only tag 42 is supported, hence we refuse parsing any other tags here.
+            0xc0..=0xd7 => Err(self.error(ErrorCode::UnexpectedCode)),
             0xd8 => {
-                let tag = self.parse_u8()?;
-                self.handle_tagged_value(tag.into(), visitor)
+                if self.parse_u8()? == CBOR_TAGS_CID {
+                    self.parse_cid(visitor)
+                } else {
+                    Err(self.error(ErrorCode::UnexpectedCode))
+                }
             }
-            0xd9 => {
-                let tag = self.parse_u16()?;
-                self.handle_tagged_value(tag.into(), visitor)
-            }
-            0xda => {
-                let tag = self.parse_u32()?;
-                self.handle_tagged_value(tag.into(), visitor)
-            }
-            0xdb => {
-                let tag = self.parse_u64()?;
-                self.handle_tagged_value(tag, visitor)
-            }
+            0xd9..=0xdb => Err(self.error(ErrorCode::UnexpectedCode)),
             0xdc..=0xdf => Err(self.error(ErrorCode::UnassignedCode)),
 
             // Major type 7: floating-point numbers and other simple data types that need no content
             0xe0..=0xf3 => Err(self.error(ErrorCode::UnassignedCode)),
             0xf4 => visitor.visit_bool(false),
             0xf5 => visitor.visit_bool(true),
-            0xf6 => visitor.visit_unit(),
-            0xf7 => visitor.visit_unit(),
+            0xf6 => visitor.visit_none(),
+            // DAG-CBOR doesn't support `undefined`
+            0xf7 => Err(self.error(ErrorCode::UnexpectedCode)),
             0xf8 => Err(self.error(ErrorCode::UnassignedCode)),
             0xf9 => {
                 let value = self.parse_f16()?;
@@ -803,11 +784,19 @@ where
     }
 
     #[inline]
-    fn deserialize_newtype_struct<V>(self, _name: &str, visitor: V) -> Result<V::Value>
+    fn deserialize_newtype_struct<V>(self, name: &str, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        visitor.visit_newtype_struct(self)
+        if name == CID_SERDE_PRIVATE_IDENTIFIER {
+            // It's only valid if there is really an encoded CID.
+            match self.parse_u16() {
+                Ok(CBOR_TAGS_MAJOR_TYPE_AND_CID) => self.parse_cid(visitor),
+                _ => Err(self.error(ErrorCode::UnexpectedCode)),
+            }
+        } else {
+            visitor.visit_newtype_struct(self)
+        }
     }
 
     // Unit variants are encoded as just the variant identifier.
@@ -1225,19 +1214,19 @@ where
 /// ```
 /// # extern crate serde_cbor;
 /// use serde_cbor::de::Deserializer;
-/// use serde_cbor::value::Value;
+/// use libipld_core::ipld::Ipld;
 ///
 /// # fn main() {
 /// let data: Vec<u8> = vec![
 ///     0x01, 0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72,
 /// ];
-/// let mut it = Deserializer::from_slice(&data[..]).into_iter::<Value>();
+/// let mut it = Deserializer::from_slice(&data[..]).into_iter::<Ipld>();
 /// assert_eq!(
-///     Value::Integer(1),
+///     Ipld::Integer(1),
 ///     it.next().unwrap().unwrap()
 /// );
 /// assert_eq!(
-///     Value::Text("foobar".to_string()),
+///     Ipld::String("foobar".to_string()),
 ///     it.next().unwrap().unwrap()
 /// );
 /// # }
@@ -1356,5 +1345,82 @@ where
     {
         let seed = StructVariantSeed { visitor };
         self.map.next_value_seed(seed)
+    }
+}
+
+/// Deserialize a DAG-CBOR encoded CID.
+///
+/// This is without the CBOR tag information. It is only the CBOR byte string identifier (major
+/// type 2), the number of bytes, and a null byte prefixed CID.
+///
+/// The reason for not including the CBOR tag information is the [`Value`] implementation. That one
+/// starts to parse the bytes, before we could interfere. If the data only includes a CID, we are
+/// parsing over the tag to determine whether it is a CID or not and go from there.
+struct CidDeserializer<'a, R>(&'a mut Deserializer<R>);
+
+//impl<'de, 'a: 'de, R> de::Deserializer<'de> for &'a mut CidDeserializer<'a, R>
+impl<'de, 'a, R> de::Deserializer<'de> for &'a mut CidDeserializer<'a, R>
+where
+    R: Read<'de>,
+{
+    type Error = Error;
+
+    fn deserialize_any<V: de::Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
+        Err(Error::message("Only bytes can be deserialized into a CID"))
+    }
+
+    #[inline]
+    fn deserialize_bytes<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        // Match on the major type, it must be a byte string (major type 2)
+        let len = match self.0.parse_u8()? {
+            // CIDs always have a `0x00` prefix, hence they cannot be zero sized.
+            0x40 => Err(self.0.error(ErrorCode::LengthOutOfRange))?,
+            byte @ 0x41..=0x57 => usize::try_from(byte - 0x40)
+                .map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?,
+            0x58 => {
+                let len = self.0.parse_u8()?;
+                usize::try_from(len).map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?
+            }
+            0x59 => {
+                let len = self.0.parse_u16()?;
+                usize::try_from(len).map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?
+            }
+            0x5a => {
+                let len = self.0.parse_u32()?;
+                usize::try_from(len).map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?
+            }
+            0x5b => {
+                let len = self.0.parse_u64()?;
+                usize::try_from(len).map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?
+            }
+            _ => Err(self.0.error(ErrorCode::UnexpectedCode))?,
+        };
+
+        match self.0.read.read(len)? {
+            EitherLifetime::Long(buf) | EitherLifetime::Short(buf) => {
+                // In DAG-CBOR the CID is prefixed with a null byte, strip that off.
+                visitor.visit_bytes(&buf[1..])
+            }
+        }
+    }
+
+    fn deserialize_newtype_struct<V: de::Visitor<'de>>(
+        self,
+        name: &str,
+        visitor: V,
+    ) -> Result<V::Value> {
+        if name == CID_SERDE_PRIVATE_IDENTIFIER {
+            self.deserialize_bytes(visitor)
+        } else {
+            Err(Error::message(format!(
+                "This deserializer must not be called on newtype structs other than one named `{}`",
+                CID_SERDE_PRIVATE_IDENTIFIER
+            )))?
+        }
+    }
+
+    forward_to_deserialize_any! {
+        bool byte_buf char enum f32 f64 i8 i16 i32 i64 identifier ignored_any map option seq str
+        string struct tuple tuple_struct u8 u16 u32 u64 unit unit_struct
     }
 }
