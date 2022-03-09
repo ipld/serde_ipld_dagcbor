@@ -732,7 +732,8 @@ where
             0xf4 => visitor.visit_bool(false),
             0xf5 => visitor.visit_bool(true),
             0xf6 => visitor.visit_none(),
-            0xf7 => visitor.visit_none(),
+            // DAG-CBOR doesn't support `undefined`
+            0xf7 => Err(self.error(ErrorCode::UnexpectedCode)),
             0xf8 => Err(self.error(ErrorCode::UnassignedCode)),
             0xf9 => {
                 let value = self.parse_f16()?;

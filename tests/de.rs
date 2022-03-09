@@ -231,7 +231,7 @@ mod std_tests {
 
     #[test]
     fn test_crazy_list() {
-        let slice = b"\x88\x1b\x00\x00\x00\x1c\xbe\x99\x1d\xc7\x3b\x00\x7a\xcf\x51\xdc\x51\x70\xdb\x3a\x1b\x3a\x06\xdd\xf5\xf6\xf7\xfb\x41\x76\x5e\xb1\xf8\x00\x00\x00\xf9\x7c\x00";
+        let slice = b"\x87\x1b\x00\x00\x00\x1c\xbe\x99\x1d\xc7\x3b\x00\x7a\xcf\x51\xdc\x51\x70\xdb\x3a\x1b\x3a\x06\xdd\xf5\xf6\xfb\x41\x76\x5e\xb1\xf8\x00\x00\x00\xf9\x7c\x00";
         let ipld: Vec<Ipld> = de::from_slice(slice).unwrap();
         assert_eq!(
             ipld,
@@ -240,7 +240,6 @@ mod std_tests {
                 Ipld::Integer(-34567897654325468),
                 Ipld::Integer(-456787678),
                 Ipld::Bool(true),
-                Ipld::Null,
                 Ipld::Null,
                 Ipld::Float(23456543.5),
                 Ipld::Float(::std::f64::INFINITY)
