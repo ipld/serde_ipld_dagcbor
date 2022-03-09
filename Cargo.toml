@@ -23,7 +23,7 @@ serde = { version = "1.0.14", default-features = false }
 
 [dev-dependencies]
 serde_derive = { version = "1.0.14", default-features = false }
-libipld-core = { version = "0.13.0", features = ["serde-codec"] }
+libipld-core = { version = "0.13.1", features = ["serde-codec"] }
 serde_bytes = "0.11.5"
 
 [features]
@@ -33,6 +33,3 @@ default = ["std"]
 alloc = ["serde/alloc"]
 std = ["serde/std" ]
 unsealed_read_write = []
-
-[patch.crates-io]
-libipld-core = { git = "https://github.com/ipld/libipld", branch = "ipld-serde" }
