@@ -1,6 +1,6 @@
 use serde::Serialize;
-use serde_cbor;
-use serde_cbor::ser::{Serializer, SliceWrite};
+use serde_ipld_dagcbor;
+use serde_ipld_dagcbor::ser::{Serializer, SliceWrite};
 
 #[macro_use]
 extern crate serde_derive;
@@ -23,7 +23,7 @@ fn test_simple_data_enum_roundtrip() {
     let end = writer.bytes_written();
     let slice = writer.into_inner();
     let deserialized: DataEnum =
-        serde_cbor::de::from_slice_with_scratch(&slice[..end], &mut []).unwrap();
+        serde_ipld_dagcbor::de::from_slice_with_scratch(&slice[..end], &mut []).unwrap();
     assert_eq!(a, deserialized);
 }
 
@@ -32,10 +32,10 @@ mod std_tests {
     use std::collections::BTreeMap;
 
     use libipld_core::ipld::Ipld;
-    use serde_cbor::ser::{IoWrite, Serializer};
-    use serde_cbor::{from_slice, to_vec};
+    use serde_ipld_dagcbor::ser::{IoWrite, Serializer};
+    use serde_ipld_dagcbor::{from_slice, to_vec};
 
-    pub fn to_vec_legacy<T>(value: &T) -> serde_cbor::Result<Vec<u8>>
+    pub fn to_vec_legacy<T>(value: &T) -> serde_ipld_dagcbor::Result<Vec<u8>>
     where
         T: serde::ser::Serialize,
     {

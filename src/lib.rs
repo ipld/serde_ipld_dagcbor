@@ -5,7 +5,7 @@
 //! Serde CBOR supports Rust 1.40 and up. Add this to your `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! serde_cbor = "0.10"
+//! serde_ipld_dagcbor = "0.1.0"
 //! ```
 //!
 //! Storing and loading Rust types is easy and requires only
@@ -36,13 +36,13 @@
 //!     // Write Ferris to the given file.
 //!     // Instead of a file you can use any type that implements `io::Write`
 //!     // like a HTTP body, database connection etc.
-//!     serde_cbor::to_writer(ferris_file, &ferris)?;
+//!     serde_ipld_dagcbor::to_writer(ferris_file, &ferris)?;
 //!
 //!     let tux_file = File::open("examples/tux.cbor")?;
 //!     // Load Tux from a file.
 //!     // Serde CBOR performs roundtrip serialization meaning that
 //!     // the data will not change in any way.
-//!     let tux: Mascot = serde_cbor::from_reader(tux_file)?;
+//!     let tux: Mascot = serde_ipld_dagcbor::from_reader(tux_file)?;
 //!
 //!     println!("{:?}", tux);
 //!     // prints: Mascot { name: "Tux", species: "penguin", year_of_birth: 1996 }
@@ -88,7 +88,7 @@
 //!
 //! ```rust
 //! use std::collections::BTreeMap;
-//! use serde_cbor::from_slice;
+//! use serde_ipld_dagcbor::from_slice;
 //!
 //! let slice = b"\xa5aaaAabaBacaCadaDaeaE";
 //! let value: BTreeMap<String, String> = from_slice(slice).unwrap();
@@ -98,7 +98,7 @@
 //! Read a general CBOR value with an unknown content.
 //!
 //! ```rust
-//! use serde_cbor::from_slice;
+//! use serde_ipld_dagcbor::from_slice;
 //! use libipld_core::ipld::Ipld;
 //!
 //! let slice = b"\x82\x01\xa1aaab";
@@ -110,7 +110,7 @@
 //!
 //! ```rust
 //! use std::collections::BTreeMap;
-//! use serde_cbor::to_vec;
+//! use serde_ipld_dagcbor::to_vec;
 //!
 //! let mut programming_languages = BTreeMap::new();
 //! programming_languages.insert("rust", vec!["safe", "concurrent", "fast"]);
@@ -122,8 +122,8 @@
 //!
 //! Deserializing data in the middle of a slice
 //! ```
-//! # extern crate serde_cbor;
-//! use serde_cbor::Deserializer;
+//! # extern crate serde_ipld_dagcbor;
+//! use serde_ipld_dagcbor::Deserializer;
 //!
 //! # fn main() {
 //! let data: Vec<u8> = vec![
@@ -143,7 +143,7 @@
 //!
 //! ```rust
 //! use serde_derive::{Deserialize, Serialize};
-//! use serde_cbor::ser::to_vec_packed;
+//! use serde_ipld_dagcbor::ser::to_vec_packed;
 //! use WithTwoVariants::*;
 //!
 //! #[derive(Debug, Serialize, Deserialize)]
@@ -163,7 +163,7 @@
 //!
 //! ```rust
 //! use serde_derive::{Deserialize, Serialize};
-//! use serde_cbor::{Result, Serializer, ser::{self, IoWrite}};
+//! use serde_ipld_dagcbor::{Result, Serializer, ser::{self, IoWrite}};
 //! use WithTwoVariants::*;
 //!
 //! fn to_vec_minimal<T>(value: &T) -> Result<Vec<u8>>
@@ -195,7 +195,7 @@
 //! ``` toml
 //! [dependencies]
 //! serde = { version = "1.0", default-features = false }
-//! serde_cbor = { version = "0.10", default-features = false }
+//! serde_ipld_dagcbor = { version = "0.10", default-features = false }
 //! ```
 //!
 //! Without the `std` feature the functions [from_reader], [from_slice], [to_vec], and [to_writer]
@@ -213,10 +213,10 @@
 //! Serialize an object with `no_std` and without `alloc`.
 //! ``` rust
 //! # #[macro_use] extern crate serde_derive;
-//! # fn main() -> Result<(), serde_cbor::Error> {
+//! # fn main() -> Result<(), serde_ipld_dagcbor::Error> {
 //! use serde::Serialize;
-//! use serde_cbor::Serializer;
-//! use serde_cbor::ser::SliceWrite;
+//! use serde_ipld_dagcbor::Serializer;
+//! use serde_ipld_dagcbor::ser::SliceWrite;
 //!
 //! #[derive(Serialize)]
 //! struct User {
@@ -247,7 +247,7 @@
 //! Deserialize an object.
 //! ``` rust
 //! # #[macro_use] extern crate serde_derive;
-//! # fn main() -> Result<(), serde_cbor::Error> {
+//! # fn main() -> Result<(), serde_ipld_dagcbor::Error> {
 //! #[derive(Debug, PartialEq, Deserialize)]
 //! struct User {
 //!     user_id: u32,
@@ -264,7 +264,7 @@
 //! // borrow from somewhere else.
 //! // You will have to size your scratch according to the input data you
 //! // expect.
-//! use serde_cbor::de::from_slice_with_scratch;
+//! use serde_ipld_dagcbor::de::from_slice_with_scratch;
 //! let mut scratch = [0u8; 32];
 //! let user: User = from_slice_with_scratch(&value[..], &mut scratch)?;
 //! assert_eq!(user, User {
@@ -280,7 +280,7 @@
 //!
 //! // from_mut_slice will move data around the input slice, you may only use it
 //! // on data you may own or can modify.
-//! use serde_cbor::de::from_mut_slice;
+//! use serde_ipld_dagcbor::de::from_mut_slice;
 //! let user: User = from_mut_slice(&mut value[..])?;
 //! assert_eq!(user, User {
 //!     user_id: 42,

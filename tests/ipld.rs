@@ -56,8 +56,8 @@ mod std_tests {
         let ipld = libipld_core::serde::to_ipld(data.clone()).unwrap();
         println!("{:?}", ipld);
 
-        let data_ser = serde_cbor::to_vec(&ipld).unwrap();
-        let data_de_ipld: Ipld = serde_cbor::from_slice(&data_ser).unwrap();
+        let data_ser = serde_ipld_dagcbor::to_vec(&ipld).unwrap();
+        let data_de_ipld: Ipld = serde_ipld_dagcbor::from_slice(&data_ser).unwrap();
 
         fn as_object(ipld: &Ipld) -> &BTreeMap<String, Ipld> {
             if let Ipld::Map(ref v) = ipld {
@@ -93,7 +93,7 @@ mod std_tests {
         // Field names should not be serialized,
         // instead field indizes are serialized.
         let value = SmallStruct { spam: 17, eggs: 42 };
-        let data = serde_cbor::ser::to_vec_packed(&value).unwrap();
+        let data = serde_ipld_dagcbor::ser::to_vec_packed(&value).unwrap();
         let reference = b"\xa2\x00\x11\x01\x18\x2a";
         assert_eq!(data, reference);
     }

@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate serde_derive;
 
-use serde_cbor;
-use serde_cbor::de;
+use serde_ipld_dagcbor;
+use serde_ipld_dagcbor::de;
 
 #[test]
 fn test_str() {
@@ -49,7 +49,7 @@ mod std_tests {
 
     use libipld_core::ipld::Ipld;
     use serde::de as serde_de;
-    use serde_cbor::{de, error, to_vec, Deserializer};
+    use serde_ipld_dagcbor::{de, error, to_vec, Deserializer};
 
     #[test]
     fn test_string1() {
@@ -213,7 +213,7 @@ mod std_tests {
             de::from_slice(&[0xd9, 0xd9, 0xf7, 0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72]);
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
     }
 
@@ -274,7 +274,7 @@ mod std_tests {
         let obj1 = Some(10u32);
 
         let v = to_vec(&obj1).unwrap();
-        let obj2: Result<Option<u32>, _> = serde_cbor::de::from_reader(&v[..]);
+        let obj2: Result<Option<u32>, _> = serde_ipld_dagcbor::de::from_reader(&v[..]);
         println!("{:?}", obj2);
 
         assert_eq!(obj1, obj2.unwrap());
@@ -286,7 +286,7 @@ mod std_tests {
 
         let v = to_vec(&obj1).unwrap();
         println!("{:?}", v);
-        let obj2: Result<Option<u32>, _> = serde_cbor::de::from_reader(&v[..]);
+        let obj2: Result<Option<u32>, _> = serde_ipld_dagcbor::de::from_reader(&v[..]);
 
         assert_eq!(obj1, obj2.unwrap());
     }
@@ -362,7 +362,7 @@ mod std_tests {
         let value_result: error::Result<Ipld> = de::from_slice(file);
         assert_eq!(
             value_result.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
     }
 
@@ -501,13 +501,13 @@ mod std_tests {
             from_slice_stream_options(&v[..], Options::default().no_standard());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
         let ipld: error::Result<(&[u8], Enum)> =
             from_slice_stream_options(&v[..], Options::default().no_standard().no_legacy());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
         // Serialization of Enum::Unit
         let v: Vec<u8> = vec![
@@ -525,7 +525,7 @@ mod std_tests {
             from_slice_stream_options(&v[..], Options::default().no_legacy().no_standard());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
 
         // This is the format used in serde <= 0.9
@@ -541,7 +541,7 @@ mod std_tests {
             from_slice_stream_options(&v[..], Options::default().no_legacy());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
         let ipld: error::Result<(&[u8], Enum)> =
             from_slice_stream_options(&v[..], Options::default().no_standard());
@@ -550,7 +550,7 @@ mod std_tests {
             from_slice_stream_options(&v[..], Options::default().no_standard().no_legacy());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
     }
 
@@ -593,7 +593,7 @@ mod std_tests {
             from_slice_stream_options(&v[..], Options::default().no_named());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
 
         // unpacked - indefinite length
@@ -628,7 +628,7 @@ mod std_tests {
             from_slice_stream_options(&v[..], Options::default().no_named());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
 
         // packed
@@ -661,7 +661,7 @@ mod std_tests {
             from_slice_stream_options(&v[..], Options::default().no_packed());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
 
         // packed - indefinite length
@@ -695,11 +695,11 @@ mod std_tests {
             from_slice_stream_options(&v[..], Options::default().no_packed());
         assert_eq!(
             ipld.unwrap_err().classify(),
-            serde_cbor::error::Category::Syntax
+            serde_ipld_dagcbor::error::Category::Syntax
         );
     }
 
-    use serde_cbor::{de::from_slice, ser::to_vec_packed};
+    use serde_ipld_dagcbor::{de::from_slice, ser::to_vec_packed};
     use std::net::{IpAddr, Ipv4Addr};
     #[test]
     fn test_ipaddr_deserialization() {
@@ -720,7 +720,7 @@ mod std_tests {
         // This causes deep recursion in the decoder and may
         // exhaust the stack and therfore result in a stack overflow.
         let input = vec![0xd1; 1000];
-        let err = serde_cbor::from_slice::<Ipld>(&input).expect_err("recursion limit");
+        let err = serde_ipld_dagcbor::from_slice::<Ipld>(&input).expect_err("recursion limit");
         assert!(err.is_syntax());
     }
 }
