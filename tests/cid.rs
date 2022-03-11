@@ -5,8 +5,8 @@ use cid::Cid;
 use libipld_core::ipld::Ipld;
 use serde::de;
 use serde_bytes::ByteBuf;
-use serde_ipld_dagcbor::{from_slice, to_vec};
 use serde_derive::{Deserialize, Serialize};
+use serde_ipld_dagcbor::{from_slice, to_vec};
 
 #[test]
 fn test_cid_struct() {
