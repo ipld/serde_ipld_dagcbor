@@ -151,44 +151,29 @@ impl Error {
 
     /// Returns true if this error was caused by a failure to read or write bytes on an IO stream.
     pub fn is_io(&self) -> bool {
-        match self.classify() {
-            Category::Io => true,
-            _ => false,
-        }
+        matches!(self.classify(), Category::Io)
     }
 
     /// Returns true if this error was caused by input that was not syntactically valid CBOR.
     pub fn is_syntax(&self) -> bool {
-        match self.classify() {
-            Category::Syntax => true,
-            _ => false,
-        }
+        matches!(self.classify(), Category::Syntax)
     }
 
     /// Returns true if this error was caused by data that was semantically incorrect.
     pub fn is_data(&self) -> bool {
-        match self.classify() {
-            Category::Data => true,
-            _ => false,
-        }
+        matches!(self.classify(), Category::Data)
     }
 
     /// Returns true if this error was caused by prematurely reaching the end of the input data.
     pub fn is_eof(&self) -> bool {
-        match self.classify() {
-            Category::Eof => true,
-            _ => false,
-        }
+        matches!(self.classify(), Category::Eof)
     }
 
     /// Returns true if this error was caused by the scratch buffer being too small.
     ///
     /// Note this being `true` implies that `is_io()` is also `true`.
     pub fn is_scratch_too_small(&self) -> bool {
-        match self.0.code {
-            ErrorCode::ScratchTooSmall => true,
-            _ => false,
-        }
+        matches!(self.0.code, ErrorCode::ScratchTooSmall)
     }
 }
 

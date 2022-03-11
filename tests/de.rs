@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate serde_derive;
 
-use serde_ipld_dagcbor;
 use serde_ipld_dagcbor::de;
 
 #[test]

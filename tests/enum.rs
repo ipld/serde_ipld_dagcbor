@@ -1,5 +1,4 @@
 use serde::Serialize;
-use serde_ipld_dagcbor;
 use serde_ipld_dagcbor::ser::{Serializer, SliceWrite};
 
 #[macro_use]

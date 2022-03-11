@@ -185,11 +185,11 @@ where
     }
 
     #[inline]
-    fn serialize_collection<'a>(
-        &'a mut self,
+    fn serialize_collection(
+        &mut self,
         major: u8,
         len: Option<usize>,
-    ) -> Result<CollectionSerializer<'a, W>> {
+    ) -> Result<CollectionSerializer<'_, W>> {
         let needs_eof = match len {
             Some(len) => {
                 self.write_u64(major, len as u64)?;

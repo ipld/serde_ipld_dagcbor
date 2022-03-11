@@ -96,7 +96,7 @@ fn test_cid_bytes_without_tag() {
 
     // The CID without the tag 42 prefix
     let cbor_bytes = &cbor_cid[2..];
-    from_slice::<Cid>(&cbor_bytes).expect_err("should have failed to decode bytes as cid");
+    from_slice::<Cid>(cbor_bytes).expect_err("should have failed to decode bytes as cid");
 }
 
 /// This test shows how a kinded enum could be implemented.
@@ -144,7 +144,7 @@ fn test_cid_in_kinded_enum() {
 
     // The CID without the tag 42 prefix
     let cbor_bytes = &cbor_cid[2..];
-    let decoded_bytes: Kinded = from_slice(&cbor_bytes).unwrap();
+    let decoded_bytes: Kinded = from_slice(cbor_bytes).unwrap();
     // The CBOR decoded bytes don't contain the prefix with the bytes type identifier and the
     // length.
     let bytes = cbor_bytes[2..].to_vec();
@@ -152,7 +152,7 @@ fn test_cid_in_kinded_enum() {
 
     // Check that random bytes cannot be deserialized.
     let random_bytes = &cbor_cid[10..];
-    let decoded_random_bytes: Result<Kinded, _> = from_slice(&random_bytes);
+    let decoded_random_bytes: Result<Kinded, _> = from_slice(random_bytes);
     assert!(decoded_random_bytes.is_err());
 }
 
@@ -206,7 +206,7 @@ fn test_cid_in_kinded_enum_with_newtype() {
 
     // The CID without the tag 42 prefix
     let cbor_bytes = &cbor_cid[2..];
-    let decoded_bytes: Kinded = from_slice(&cbor_bytes).unwrap();
+    let decoded_bytes: Kinded = from_slice(cbor_bytes).unwrap();
     // The CBOR decoded bytes don't contain the prefix with the bytes type identifier and the
     // length.
     let bytes = cbor_bytes[2..].to_vec();
@@ -214,7 +214,7 @@ fn test_cid_in_kinded_enum_with_newtype() {
 
     // Check that random bytes cannot be deserialized.
     let random_bytes = &cbor_cid[10..];
-    let decoded_random_bytes: Result<Kinded, _> = from_slice(&random_bytes);
+    let decoded_random_bytes: Result<Kinded, _> = from_slice(random_bytes);
     assert!(decoded_random_bytes.is_err());
 }
 

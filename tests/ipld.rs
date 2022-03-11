@@ -24,11 +24,12 @@ mod std_tests {
 
     use std::iter::FromIterator;
 
+    #[allow(clippy::useless_format)]
     #[test]
     fn serde() {
         let tuple_struct = TupleStruct(format!("test"), -60, 3000);
 
-        let tuple = (format!("hello"), -50.0040957, -12.094635556478);
+        let tuple = (format!("hello"), -50.004097, -12.094635556478);
 
         let map = BTreeMap::from_iter(
             [

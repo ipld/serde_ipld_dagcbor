@@ -331,7 +331,7 @@ where
         }
     }
 
-    fn convert_str<'a>(buf: &'a [u8], buf_end_offset: u64) -> Result<&'a str> {
+    fn convert_str(buf: &[u8], buf_end_offset: u64) -> Result<&str> {
         match str::from_utf8(buf) {
             Ok(s) => Ok(s),
             Err(e) => {
@@ -552,11 +552,11 @@ where
     }
 
     fn parse_f32(&mut self) -> Result<f32> {
-        self.parse_u32().map(|i| f32::from_bits(i))
+        self.parse_u32().map(f32::from_bits)
     }
 
     fn parse_f64(&mut self) -> Result<f64> {
-        self.parse_u64().map(|i| f64::from_bits(i))
+        self.parse_u64().map(f64::from_bits)
     }
 
     fn parse_cid<V>(&mut self, visitor: V) -> Result<V::Value>
@@ -1374,7 +1374,7 @@ where
         // Match on the major type, it must be a byte string (major type 2)
         let len = match self.0.parse_u8()? {
             // CIDs always have a `0x00` prefix, hence they cannot be zero sized.
-            0x40 => Err(self.0.error(ErrorCode::LengthOutOfRange))?,
+            0x40 => return Err(self.0.error(ErrorCode::LengthOutOfRange)),
             byte @ 0x41..=0x57 => usize::try_from(byte - 0x40)
                 .map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?,
             0x58 => {
@@ -1393,7 +1393,7 @@ where
                 let len = self.0.parse_u64()?;
                 usize::try_from(len).map_err(|_| self.0.error(ErrorCode::LengthOutOfRange))?
             }
-            _ => Err(self.0.error(ErrorCode::UnexpectedCode))?,
+            _ => return Err(self.0.error(ErrorCode::UnexpectedCode)),
         };
 
         match self.0.read.read(len)? {
@@ -1412,10 +1412,10 @@ where
         if name == CID_SERDE_PRIVATE_IDENTIFIER {
             self.deserialize_bytes(visitor)
         } else {
-            Err(Error::message(format!(
+            return Err(Error::message(format!(
                 "This deserializer must not be called on newtype structs other than one named `{}`",
                 CID_SERDE_PRIVATE_IDENTIFIER
-            )))?
+            )));
         }
     }
 
