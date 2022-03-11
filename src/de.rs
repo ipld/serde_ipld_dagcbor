@@ -332,6 +332,7 @@ where
     }
 
     fn convert_str(buf: &[u8], buf_end_offset: u64) -> Result<&str> {
+        #[cfg(not(feature = "_do_not_use_its_unsafe_and_invalid_cbor"))]
         match str::from_utf8(buf) {
             Ok(s) => Ok(s),
             Err(e) => {
@@ -340,6 +341,10 @@ where
                 Err(Error::syntax(ErrorCode::InvalidUtf8, offset))
             }
         }
+
+        // Don't use this. This can lead to random panics and invalid CBOR.
+        #[cfg(feature = "_do_not_use_its_unsafe_and_invalid_cbor")]
+        Ok(unsafe { str::from_utf8_unchecked(buf) })
     }
 
     fn parse_str<V>(&mut self, len: usize, visitor: V) -> Result<V::Value>
