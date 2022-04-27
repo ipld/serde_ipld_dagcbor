@@ -5,6 +5,8 @@ use serde_derive::{Deserialize, Serialize};
 use std::error::Error;
 #[cfg(feature = "std")]
 use std::fs::File;
+#[cfg(feature = "std")]
+use std::io::BufReader;
 
 // Types annotated with `Serialize` can be stored as CBOR.
 // To be able to load them again add `Deserialize`.
@@ -30,10 +32,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     serde_ipld_dagcbor::to_writer(ferris_file, &ferris)?;
 
     let tux_file = File::open("examples/tux.cbor")?;
+    let tux_reader = BufReader::new(tux_file);
     // Load Tux from a file.
     // Serde CBOR performs roundtrip serialization meaning that
     // the data will not change in any way.
-    let tux: Mascot = serde_ipld_dagcbor::from_reader(tux_file)?;
+    let tux: Mascot = serde_ipld_dagcbor::from_reader(tux_reader)?;
 
     println!("{:?}", tux);
     // prints: Mascot { name: "Tux", species: "penguin", year_of_birth: 1996 }

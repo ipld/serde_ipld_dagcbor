@@ -4,8 +4,8 @@ use std::str::FromStr;
 use cid::Cid;
 use libipld_core::ipld::Ipld;
 use serde::de;
+use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
-use serde_derive::{Deserialize, Serialize};
 use serde_ipld_dagcbor::{from_slice, to_vec};
 
 #[test]
@@ -225,4 +225,32 @@ fn test_cid_empty_errors() {
 
     let decoded: Result<Cid, _> = from_slice(&cbor_empty_cid);
     assert!(decoded.is_err());
+}
+
+#[test]
+fn test_cid_non_minimally_encoded() {
+    let cid = Cid::from_str("bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy").unwrap();
+    let cid_encoded = to_vec(&cid).unwrap();
+
+    let decoded: Cid = from_slice(&cid_encoded).unwrap();
+    assert_eq!(decoded, cid);
+
+    // Strip off the CBOR tag.
+    let without_tag = &cid_encoded[2..];
+
+    let tag_2_bytes_encoded = [&[0xd9, 0x00, 0x2a], without_tag].concat();
+    let tag_2_bytes_decoded: Cid = from_slice(&tag_2_bytes_encoded).unwrap();
+    assert_eq!(tag_2_bytes_decoded, cid);
+
+    let tag_4_bytes_encoded = [&[0xda, 0x00, 0x00, 0x00, 0x2a], without_tag].concat();
+    let tag_4_bytes_decoded: Cid = from_slice(&tag_4_bytes_encoded).unwrap();
+    assert_eq!(tag_4_bytes_decoded, cid);
+
+    let tag_8_bytes_encoded = [
+        &[0xdb, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a],
+        without_tag,
+    ]
+    .concat();
+    let tag_8_bytes_decoded: Cid = from_slice(&tag_8_bytes_encoded).unwrap();
+    assert_eq!(tag_8_bytes_decoded, cid);
 }

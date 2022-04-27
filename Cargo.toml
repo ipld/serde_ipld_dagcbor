@@ -15,20 +15,17 @@ categories = ["encoding"]
 edition = "2018"
 
 [dependencies]
-cid = { version = "0.8.0", features = ["serde-codec"] }
-half = "1.2.0"
-serde = { version = "1.0.14", default-features = false }
+cbor4ii = { version = "0.2.13", default-features = false, features = ["use_alloc"] }
+cid = { version = "0.8.0", default-features = false, features = ["serde-codec"] }
+scopeguard = "1.1.0"
+serde = { version = "1.0.14", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 serde_derive = { version = "1.0.14", default-features = false }
-libipld-core = { version = "0.13.1", features = ["serde-codec"] }
-serde_bytes = "0.11.5"
+libipld-core = { version = "0.13.1", default-features = false, features = ["serde-codec"] }
+serde_bytes = { version = "0.11.5", default-features = false, features = ["alloc"]}
 
 [features]
 default = ["std"]
-# Uses `alloc` library and adds support for vector functions with
-# `no_std`.
-alloc = ["serde/alloc"]
-std = ["serde/std" ]
-unsealed_read_write = []
-_do_not_use_its_unsafe_and_invalid_cbor = []
+std = ["cbor4ii/use_std", "cid/std", "serde/std", "serde_bytes/std"]
+_do_not_use_its_unsafe_and_invalid_cbor = ["std"]
