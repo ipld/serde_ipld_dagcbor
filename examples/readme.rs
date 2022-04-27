@@ -8,7 +8,7 @@ use std::fs::File;
 #[cfg(feature = "std")]
 use std::io::BufReader;
 
-// Types annotated with `Serialize` can be stored as CBOR.
+// Types annotated with `Serialize` can be stored as DAG-CBOR.
 // To be able to load them again add `Deserialize`.
 #[derive(Debug, Serialize, Deserialize)]
 struct Mascot {
@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let tux_file = File::open("examples/tux.cbor")?;
     let tux_reader = BufReader::new(tux_file);
     // Load Tux from a file.
-    // Serde CBOR performs roundtrip serialization meaning that
+    // Serde IPLD DAG-CBOR performs roundtrip serialization meaning that
     // the data will not change in any way.
     let tux: Mascot = serde_ipld_dagcbor::from_reader(tux_reader)?;
 
