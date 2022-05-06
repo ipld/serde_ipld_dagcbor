@@ -649,7 +649,7 @@ impl<'de, 'a, R: dec::Read<'de>> de::Deserializer<'de> for &'a mut CidDeserializ
             major::BYTES => {
                 // CBOR encoded CIDs have a zero byte prefix we have to remove.
                 let buf = <types::Bytes<&[u8]>>::decode(&mut self.0.reader)?.0;
-                if buf.len() <= 1 {
+                if buf.len() <= 1 || buf[0] != 0 {
                     Err(DecodeError::Msg("Invalid CID".into()))
                 } else {
                     visitor.visit_borrowed_bytes(&buf[1..])
