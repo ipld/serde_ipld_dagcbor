@@ -309,6 +309,17 @@ fn invalid_string() {
     ));
 }
 
+#[test]
+fn error_on_undefined() {
+    // CBOR smple type `undefined`
+    let input = [0xf7];
+    let result = serde_ipld_dagcbor::from_slice::<Ipld>(&input);
+    assert!(matches!(
+        result.unwrap_err(),
+        DecodeError::Unsupported { .. }
+    ));
+}
+
 #[cfg(feature = "_do_not_use_its_unsafe_and_invalid_cbor")]
 #[test]
 fn do_not_use_its_unsafe_and_invalid_cbor_test() {

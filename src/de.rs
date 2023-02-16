@@ -182,7 +182,7 @@ impl<'de, 'a, R: dec::Read<'de>> serde::Deserializer<'de> for &'a mut Deserializ
                     de.reader.advance(1);
                     visitor.visit_bool(true)
                 }
-                marker::NULL | marker::UNDEFINED => {
+                marker::NULL => {
                     de.reader.advance(1);
                     visitor.visit_none()
                 }
@@ -280,7 +280,7 @@ impl<'de, 'a, R: dec::Read<'de>> serde::Deserializer<'de> for &'a mut Deserializ
         V: Visitor<'de>,
     {
         let byte = peek_one(&mut self.reader)?;
-        if byte != marker::NULL && byte != marker::UNDEFINED {
+        if byte != marker::NULL {
             let mut de = self.try_step()?;
             visitor.visit_some(&mut **de)
         } else {
