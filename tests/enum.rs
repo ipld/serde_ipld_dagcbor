@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use serde_ipld_dagcbor::{from_slice, to_vec};
+use serde_ipld_dagcbor::{from_slice, to_vec, DecodeError};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 enum Enum {
@@ -80,10 +80,10 @@ enum Foo {
 }
 
 #[test]
-fn test_variable_length_array() {
+fn test_variable_length_array_error() {
     let slice = b"\x9F\x67\x72\x65\x71\x75\x69\x72\x65\xFF";
-    let value: Vec<Foo> = from_slice(slice).unwrap();
-    assert_eq!(value, [Foo::Require]);
+    let value: Result<Vec<Foo>, _> = from_slice(slice);
+    assert!(matches!(value.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]

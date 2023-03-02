@@ -164,6 +164,9 @@ impl<'de, 'a, R: dec::Read<'de>> serde::Deserializer<'de> for &'a mut Deserializ
         let de = &mut *de;
 
         let byte = peek_one(&mut de.reader)?;
+        if is_indefinite(byte) {
+            return Err(DecodeError::IndefiniteSize);
+        }
         match dec::if_major(byte) {
             major::UNSIGNED => de.deserialize_u64(visitor),
             major::NEGATIVE => de.deserialize_i64(visitor),
@@ -426,17 +429,17 @@ impl<'de, 'a, R: dec::Read<'de>> serde::Deserializer<'de> for &'a mut Deserializ
 
 struct Accessor<'a, R> {
     de: &'a mut Deserializer<R>,
-    len: Option<usize>,
+    len: usize,
 }
 
 impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     #[inline]
     pub fn array(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
         let array_start = dec::ArrayStart::decode(&mut de.reader)?;
-        Ok(Accessor {
-            de,
-            len: array_start.0,
-        })
+        array_start.0.map_or_else(
+            || Err(DecodeError::IndefiniteSize),
+            move |len| Ok(Accessor { de, len }),
+        )
     }
 
     #[inline]
@@ -447,10 +450,7 @@ impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
         let array_start = dec::ArrayStart::decode(&mut de.reader)?;
 
         if array_start.0 == Some(len) {
-            Ok(Accessor {
-                de,
-                len: array_start.0,
-            })
+            Ok(Accessor { de, len })
         } else {
             Err(DecodeError::RequireLength {
                 name: "tuple",
@@ -463,10 +463,10 @@ impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     #[inline]
     pub fn map(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
         let map_start = dec::MapStart::decode(&mut de.reader)?;
-        Ok(Accessor {
-            de,
-            len: map_start.0,
-        })
+        map_start.0.map_or_else(
+            || Err(DecodeError::IndefiniteSize),
+            move |len| Ok(Accessor { de, len }),
+        )
     }
 }
 
@@ -481,24 +481,17 @@ where
     where
         T: de::DeserializeSeed<'de>,
     {
-        if let Some(len) = self.len.as_mut() {
-            if *len > 0 {
-                *len -= 1;
-                Ok(Some(seed.deserialize(&mut *self.de)?))
-            } else {
-                Ok(None)
-            }
-        } else if peek_one(&mut self.de.reader)? != marker::BREAK {
+        if self.len > 0 {
+            self.len -= 1;
             Ok(Some(seed.deserialize(&mut *self.de)?))
         } else {
-            self.de.reader.advance(1);
             Ok(None)
         }
     }
 
     #[inline]
     fn size_hint(&self) -> Option<usize> {
-        self.len
+        Some(self.len)
     }
 }
 
@@ -510,17 +503,10 @@ impl<'de, 'a, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'a, R> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        if let Some(len) = self.len.as_mut() {
-            if *len > 0 {
-                *len -= 1;
-                Ok(Some(seed.deserialize(&mut *self.de)?))
-            } else {
-                Ok(None)
-            }
-        } else if peek_one(&mut self.de.reader)? != marker::BREAK {
+        if self.len > 0 {
+            self.len -= 1;
             Ok(Some(seed.deserialize(&mut *self.de)?))
         } else {
-            self.de.reader.advance(1);
             Ok(None)
         }
     }
@@ -535,7 +521,7 @@ impl<'de, 'a, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'a, R> {
 
     #[inline]
     fn size_hint(&self) -> Option<usize> {
-        self.len
+        Some(self.len)
     }
 }
 
@@ -690,4 +676,10 @@ impl<'de, 'a, R: dec::Read<'de>> de::Deserializer<'de> for &'a mut CidDeserializ
         bool byte_buf char enum f32 f64 i8 i16 i32 i64 identifier ignored_any map option seq str
         string struct tuple tuple_struct u8 u16 u32 u64 unit unit_struct
     }
+}
+
+/// Check if byte is a major type with indefinite length.
+#[inline]
+pub fn is_indefinite(byte: u8) -> bool {
+    byte & marker::START == marker::START
 }
