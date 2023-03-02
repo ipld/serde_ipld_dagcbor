@@ -305,11 +305,3 @@ fn error_on_undefined() {
         DecodeError::Unsupported { .. }
     ));
 }
-
-#[cfg(feature = "_do_not_use_its_unsafe_and_invalid_cbor")]
-#[test]
-fn do_not_use_its_unsafe_and_invalid_cbor_test() {
-    let input = [0x63, 0xc5, 0x01, 0x02];
-    let result = serde_ipld_dagcbor::from_slice::<Ipld>(&input);
-    assert!(result.is_ok())
-}
