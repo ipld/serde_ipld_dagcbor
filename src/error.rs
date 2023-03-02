@@ -121,6 +121,8 @@ pub enum DecodeError<E> {
     DepthLimit,
     /// Trailing data.
     TrailingData,
+    /// Indefinite sized item was encountered.
+    IndefiniteSize,
 }
 
 impl<E> From<E> for DecodeError<E> {

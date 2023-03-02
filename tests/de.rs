@@ -98,7 +98,7 @@ fn test_object() {
 }
 
 #[test]
-fn test_indefinite_object() {
+fn test_indefinite_object_error() {
     let ipld: Result<Ipld, _> = de::from_slice(b"\xbfaa\x01ab\x9f\x02\x03\xff\xff");
     let mut object = BTreeMap::new();
     object.insert("a".to_string(), Ipld::Integer(1));
@@ -106,45 +106,33 @@ fn test_indefinite_object() {
         "b".to_string(),
         Ipld::List(vec![Ipld::Integer(2), Ipld::Integer(3)]),
     );
-    assert_eq!(ipld.unwrap(), Ipld::Map(object));
+    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
-fn test_indefinite_list() {
+fn test_indefinite_list_error() {
     let ipld: Result<Ipld, _> = de::from_slice(b"\x9f\x01\x02\x03\xff");
-    assert_eq!(
-        ipld.unwrap(),
-        Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(2), Ipld::Integer(3)])
-    );
+    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
-fn test_indefinite_string() {
+fn test_indefinite_string_error() {
     let ipld: Result<Ipld, _> =
         de::from_slice(b"\x7f\x65Mary \x64Had \x62a \x67Little \x60\x64Lamb\xff");
-    assert_eq!(
-        ipld.unwrap(),
-        Ipld::String("Mary Had a Little Lamb".to_string())
-    );
+    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
-fn test_indefinite_byte_string() {
+fn test_indefinite_byte_string_error() {
     let ipld: Result<Ipld, _> = de::from_slice(b"\x5f\x42\x01\x23\x42\x45\x67\xff");
-    assert_eq!(ipld.unwrap(), Ipld::Bytes(b"\x01#Eg".to_vec()));
+    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
-fn test_multiple_indefinite_strings() {
+fn test_multiple_indefinite_strings_error() {
     let input = b"\x82\x7f\x65Mary \x64Had \x62a \x67Little \x60\x64Lamb\xff\x5f\x42\x01\x23\x42\x45\x67\xff";
     let ipld: Result<Ipld, _> = de::from_slice(input);
-    assert_eq!(
-        ipld.unwrap(),
-        Ipld::List(vec![
-            Ipld::String("Mary Had a Little Lamb".to_string()),
-            Ipld::Bytes(b"\x01#Eg".to_vec())
-        ])
-    );
+    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
@@ -234,12 +222,10 @@ fn test_unit() {
 }
 
 #[test]
-fn test_variable_length_map() {
+fn test_variable_length_map_error() {
     let slice = b"\xbf\x67\x6d\x65\x73\x73\x61\x67\x65\x64\x70\x6f\x6e\x67\xff";
-    let ipld: Ipld = de::from_slice(slice).unwrap();
-    let mut map = BTreeMap::new();
-    map.insert("message".to_string(), Ipld::String("pong".to_string()));
-    assert_eq!(ipld, Ipld::Map(map))
+    let ipld: Result<Ipld, _> = de::from_slice(slice);
+    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
