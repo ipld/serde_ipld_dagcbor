@@ -28,7 +28,7 @@ pub(crate) fn peek_one<'a, R: dec::Read<'a>>(reader: &mut R) -> Result<u8, Decod
         dec::Reference::Long(buf) => buf,
         dec::Reference::Short(buf) => buf,
     };
-    let byte = buf.get(0).copied().ok_or(DecodeError::Eof)?;
+    let byte = buf.first().copied().ok_or(DecodeError::Eof)?;
     Ok(byte)
 }
 

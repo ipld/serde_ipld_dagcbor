@@ -225,6 +225,7 @@ fn test_option_none_roundtrip() {
 
 #[test]
 fn test_unit() {
+    #[allow(clippy::let_unit_value)]
     let unit = ();
     let v = to_vec(&unit).unwrap();
     assert_eq!(v, [0xf6], "unit is serialized as NULL.");
