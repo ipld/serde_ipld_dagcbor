@@ -251,21 +251,9 @@ impl<'de, 'a, R: dec::Read<'de>> serde::Deserializer<'de> for &'a mut Deserializ
     where
         V: Visitor<'de>,
     {
-        #[cfg(not(feature = "_do_not_use_its_unsafe_and_invalid_cbor"))]
         match <Cow<str>>::decode(&mut self.reader)? {
             Cow::Borrowed(buf) => visitor.visit_borrowed_str(buf),
             Cow::Owned(buf) => visitor.visit_string(buf),
-        }
-
-        // Don't use this. This can lead to random panics and invalid CBOR.
-        #[cfg(feature = "_do_not_use_its_unsafe_and_invalid_cbor")]
-        match types::BadStr::<Cow<[u8]>>::decode(&mut self.reader)? {
-            types::BadStr(Cow::Borrowed(buf)) => {
-                visitor.visit_borrowed_str(unsafe { std::str::from_utf8_unchecked(buf) })
-            }
-            types::BadStr(Cow::Owned(buf)) => {
-                visitor.visit_string(unsafe { String::from_utf8_unchecked(buf) })
-            }
         }
     }
 

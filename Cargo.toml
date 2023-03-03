@@ -28,4 +28,3 @@ serde_bytes = { version = "0.11.5", default-features = false, features = ["alloc
 [features]
 default = ["std"]
 std = ["cbor4ii/use_std", "cid/std", "serde/std", "serde_bytes/std"]
-_do_not_use_its_unsafe_and_invalid_cbor = ["std"]
