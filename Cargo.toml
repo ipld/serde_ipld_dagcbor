@@ -1,6 +1,6 @@
 [package]
 name = "serde_ipld_dagcbor"
-version = "0.3.0"
+version = "0.4.0"
 authors = [
     "Pyfisch <pyfisch@posteo.org>",
     "Steven Fackler <sfackler@gmail.com>",
