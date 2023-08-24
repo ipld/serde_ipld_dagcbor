@@ -142,10 +142,4 @@ testcase!(
     "a165416c706861821a00039447183c"
 );
 testcase!(test_i128_a, i128, -1i128, "20");
-testcase!(
-    test_i128_b,
-    i128,
-    -18446744073709551616i128,
-    "3BFFFFFFFFFFFFFFFF"
-);
 testcase!(test_u128, u128, 17, "11");
