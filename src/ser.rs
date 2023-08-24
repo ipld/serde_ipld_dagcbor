@@ -302,7 +302,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
 
     #[inline]
     fn serialize_i128(self, v: i128) -> Result<Self::Ok, Self::Error> {
-        if !(u64::MAX as i128 >= v && (u64::MAX as i128) * -1 <= v) {
+        if !(u64::MAX as i128 >= v && -(u64::MAX as i128) <= v) {
             return Err(EncodeError::Msg(
                 "Integer must be within [-u64::MAX, u64::MAX] range".into(),
             ));
@@ -314,7 +314,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
 
     #[inline]
     fn serialize_u128(self, v: u128) -> Result<Self::Ok, Self::Error> {
-        if !(u64::MAX as u128 >= v) {
+        if (u64::MAX as u128) < v {
             return Err(EncodeError::Msg(
                 "Unsigned integer must be within [0, u64::MAX] range".into(),
             ));
