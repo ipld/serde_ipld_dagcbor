@@ -74,6 +74,19 @@ fn test_integer() {
     // u64
     let vec = to_vec(&::std::u64::MAX).unwrap();
     assert_eq!(vec, b"\x1b\xff\xff\xff\xff\xff\xff\xff\xff");
+    // u128 within u64 range
+    let vec = to_vec(&(u64::MAX as u128)).unwrap();
+    assert_eq!(vec, b"\x1b\xff\xff\xff\xff\xff\xff\xff\xff");
+    // u128 out of range
+    assert!(to_vec(&(u64::MAX as u128 + 1)).is_err());
+    // i128 within u64 range
+    let vec = to_vec(&(u64::MAX as i128)).unwrap();
+    assert_eq!(vec, b"\x1b\xff\xff\xff\xff\xff\xff\xff\xff");
+    // i128 within -u64 range
+    let vec = to_vec(&(-(u64::MAX as i128))).unwrap();
+    assert_eq!(vec, b"\x3B\xff\xff\xff\xff\xff\xff\xff\xfe");
+    // i128 out of -u64 range
+    assert!(to_vec(&(-(u64::MAX as i128) - 1)).is_err());
 }
 
 #[test]
