@@ -1,7 +1,7 @@
 //! Deserialization.
 #[cfg(not(feature = "std"))]
 use alloc::borrow::Cow;
-use core::convert::Infallible;
+use core::convert::{Infallible, TryFrom};
 #[cfg(feature = "std")]
 use std::borrow::Cow;
 
@@ -169,7 +169,15 @@ impl<'de, 'a, R: dec::Read<'de>> serde::Deserializer<'de> for &'a mut Deserializ
         }
         match dec::if_major(byte) {
             major::UNSIGNED => de.deserialize_u64(visitor),
-            major::NEGATIVE => de.deserialize_i64(visitor),
+            major::NEGATIVE => {
+                // CBOR supports negative integers up to -2^64 which is less than i64::MIN. Only
+                // treat it as i128, if it is outside the i64 range.
+                let value = i128::decode(&mut de.reader)?;
+                match i64::try_from(value) {
+                    Ok(value_i64) => visitor.visit_i64(value_i64),
+                    Err(_) => visitor.visit_i128(value),
+                }
+            }
             major::BYTES => de.deserialize_byte_buf(visitor),
             major::STRING => de.deserialize_string(visitor),
             major::ARRAY => de.deserialize_seq(visitor),
