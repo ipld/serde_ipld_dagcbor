@@ -85,8 +85,11 @@ fn test_integer() {
     // i128 within -u64 range
     let vec = to_vec(&(-(u64::MAX as i128))).unwrap();
     assert_eq!(vec, b"\x3B\xff\xff\xff\xff\xff\xff\xff\xfe");
+    // minimum CBOR integer value
+    let vec = to_vec(&(-(u64::MAX as i128 + 1))).unwrap();
+    assert_eq!(vec, b"\x3B\xff\xff\xff\xff\xff\xff\xff\xff");
     // i128 out of -u64 range
-    assert!(to_vec(&(-(u64::MAX as i128) - 1)).is_err());
+    assert!(to_vec(&i128::MIN).is_err());
 }
 
 #[test]
