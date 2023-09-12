@@ -304,7 +304,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
     fn serialize_i128(self, v: i128) -> Result<Self::Ok, Self::Error> {
         if !(u64::MAX as i128 >= v && -(u64::MAX as i128 + 1) <= v) {
             return Err(EncodeError::Msg(
-                "Integer must be within [-u64::MAX, u64::MAX] range".into(),
+                "Integer must be within [-u64::MAX-1, u64::MAX] range".into(),
             ));
         }
 
