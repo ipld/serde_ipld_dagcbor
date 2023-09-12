@@ -53,6 +53,15 @@ fn test_numbers3() {
 }
 
 #[test]
+fn test_numbers_large_negative() {
+    let ipld: Result<Ipld, _> =
+        de::from_slice(&[0x3b, 0xa5, 0xf7, 0x02, 0xb3, 0xa5, 0xf7, 0x02, 0xb3]);
+    let expected: i128 = -11959030306112471732;
+    assert!(expected < i128::from(i64::MIN));
+    assert_eq!(ipld.unwrap(), Ipld::Integer(expected));
+}
+
+#[test]
 fn test_bool() {
     let ipld: Result<Ipld, _> = de::from_slice(b"\xf4");
     assert_eq!(ipld.unwrap(), Ipld::Bool(false));
