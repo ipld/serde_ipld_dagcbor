@@ -84,6 +84,30 @@ fn test_cid_not_as_bytes() {
         .expect("should have parsed an untagged CID as a byte array");
 }
 
+/// Test that CIDs don't decode into byte buffers when used as internally tagged enum
+#[test]
+fn test_cid_enum_not_as_bytes() {
+    #[derive(Deserialize, PartialEq, Debug)]
+    struct NewType(ByteBuf);
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    #[serde(tag = "type")]
+    pub enum InternallyTagged {
+        Cid { cid: NewType },
+    }
+
+    let cbor_cid = [
+        0xa2, 0x63, 0x63, 0x69, 0x64, 0xd8, 0x2a, 0x58, 0x25, 0x00, 0x01, 0x55, 0x12, 0x20, 0x2c,
+        0x26, 0xb4, 0x6b, 0x68, 0xff, 0xc6, 0x8f, 0xf9, 0x9b, 0x45, 0x3c, 0x1d, 0x30, 0x41, 0x34,
+        0x13, 0x42, 0x2d, 0x70, 0x64, 0x83, 0xbf, 0xa0, 0xf9, 0x8a, 0x5e, 0x88, 0x62, 0x66, 0xe7,
+        0xae, 0x64, 0x74, 0x79, 0x70, 0x65, 0x63, 0x43, 0x69, 0x64,
+    ];
+    //from_slice::<InternallyTagged>(&cbor_cid).expect_err("shouldn't have parsed a tagged CID as a sequence");
+    let foo = from_slice::<InternallyTagged>(&cbor_cid);
+    println!("vmx: test: enum: foo: {:?}", foo);
+    foo.expect_err("shouldn't have parsed a tagged CID as a sequence");
+}
+
 /// Test whether a binary CID could be serialized if it isn't prefixed by tag 42. It should fail.
 #[test]
 fn test_cid_bytes_without_tag() {
