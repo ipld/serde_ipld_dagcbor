@@ -46,13 +46,6 @@ impl<'de> de::Deserialize<'de> for CidInInternallyTaggedEnum {
 }
 
 /// This enum shows how an untagged enum could be implemented.
-#[derive(Deserialize)]
-#[serde(tag = "t", content = "c")]
-enum CidInAdjacentlyTaggedEnum {
-    MyCid(Cid),
-}
-
-/// This enum shows how an untagged enum could be implemented.
 #[derive(Debug, PartialEq)]
 enum CidInUntaggedEnum {
     MyCid(Cid),
