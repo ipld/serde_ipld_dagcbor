@@ -82,6 +82,21 @@ fn test_cid_not_as_bytes() {
         .expect_err("shouldn't have parsed a tagged CID as a byte array");
     from_slice::<serde_bytes::ByteBuf>(&cbor_cid[2..])
         .expect("should have parsed an untagged CID as a byte array");
+
+    #[cfg(feature = "no-cid-as-bytes")]
+    {
+        #[derive(Debug, Deserialize)]
+        struct NewType(ByteBuf);
+
+        #[derive(Debug, Deserialize)]
+        #[serde(untagged)]
+        enum BytesInEnum {
+            MyCid(NewType),
+        }
+
+        from_slice::<BytesInEnum>(&cbor_cid)
+            .expect_err("shouldn't have parsed a tagged CID as byte array");
+    }
 }
 
 /// Test whether a binary CID could be serialized if it isn't prefixed by tag 42. It should fail.

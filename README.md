@@ -66,6 +66,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 ```
 
 
+Features
+--------
+
+### `no-cid-as-bytes`
+
+Sometimes it is desired that a CID is not accidentally deserialized into bytes. The `no-cid-as-bytes` feature can be enabled in order to error at runtime in such cases.
+
+The problem with that feature is, that it breaks Serde's derive attributes for [internally tagged enums](https://serde.rs/enum-representations.html#internally-tagged) (`#[serde(tag = "sometag")]`) and [untagged enums](https://serde.rs/enum-representations.html#untagged) (`#serde(untagged)`). If this feature is enabled and you still need similar functionality, you could implement a deserializer manually. Examples of how to do that are in the [enum example](examples/enums.rs).
+
+
 License
 -------
 
