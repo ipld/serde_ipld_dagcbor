@@ -65,6 +65,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
+Limitations
+-----------
+
+This library tries as much as it can to make it impossible to accidentally deserialize a CID into bytes. Due to that objective, there are certain limitations. The Serde attributes for [internally tagged and untagged enums](https://serde.rs/enum-representations.html) won't work, but will lead to errors. It means that you cannot automatically derive them, but you would need to implement such functionality manually with a custom deserializer. Examples of how to do that are in the [enum example](examples/enums.rs).
+
 
 License
 -------

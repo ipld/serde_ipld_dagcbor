@@ -37,5 +37,5 @@ jobs:
         shell: bash
 
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --all-targets --workspace
         shell: bash
