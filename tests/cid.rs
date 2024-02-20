@@ -83,19 +83,30 @@ fn test_cid_not_as_bytes() {
     from_slice::<serde_bytes::ByteBuf>(&cbor_cid[2..])
         .expect("should have parsed an untagged CID as a byte array");
 
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct NewType(ByteBuf);
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    #[serde(untagged)]
+    enum BytesInEnum {
+        MyCid(NewType),
+    }
+
+    // With the `no-cid-as-bytes` feature enabled, we make sure that it will error, when we try to
+    // decode a CID as bytes.
     #[cfg(feature = "no-cid-as-bytes")]
+    from_slice::<BytesInEnum>(&cbor_cid)
+        .expect_err("shouldn't have parsed a tagged CID as byte array");
+
+    // With that feature disabled, then it will decode the CID (without the TAG and the zero
+    // prefix) as bytes.
+    #[cfg(not(feature = "no-cid-as-bytes"))]
     {
-        #[derive(Debug, Deserialize)]
-        struct NewType(ByteBuf);
-
-        #[derive(Debug, Deserialize)]
-        #[serde(untagged)]
-        enum BytesInEnum {
-            MyCid(NewType),
-        }
-
-        from_slice::<BytesInEnum>(&cbor_cid)
-            .expect_err("shouldn't have parsed a tagged CID as byte array");
+        let cid_without_tag = &cbor_cid[5..];
+        assert_eq!(
+            from_slice::<BytesInEnum>(&cbor_cid).unwrap(),
+            BytesInEnum::MyCid(NewType(ByteBuf::from(cid_without_tag)))
+        );
     }
 }
 
@@ -234,7 +245,6 @@ fn test_cid_in_kinded_enum_with_newtype() {
     assert!(decoded_random_bytes.is_err());
 }
 
-#[cfg(not(feature = "no-cid-as-bytes"))]
 #[test]
 fn test_cid_in_tagged_enum() {
     #[derive(Debug, Deserialize, PartialEq)]
@@ -277,11 +287,27 @@ fn test_cid_in_tagged_enum() {
     let decoded: Externally = from_slice(&cbor_map1).unwrap();
     assert_eq!(decoded, Externally::Cid(cid));
 
-    let decoded: Internally = from_slice(&cbor_map2).unwrap();
-    assert_eq!(decoded, Internally::Cid { cid });
+    // With the `no-cid-as-bytes` feature enabled, it's not possible to use internally tagged or
+    // untaggd enums. This behaviour is *not* intentionally, but incidentally due to how Serde
+    // internally works.. This test is only added to see what one could expect, and to get
+    // notified in case it ever gets supported.
+    #[cfg(feature = "no-cid-as-bytes")]
+    {
+        from_slice::<Internally>(&cbor_map2)
+            .expect_err("shouldn't be able to decode the intanlly tagged enum");
+        from_slice::<Untagged>(&cbor_cid)
+            .expect_err("shouldn't be able to decode the untagged enum");
+    }
 
-    let decoded: Untagged = from_slice(&cbor_cid).unwrap();
-    assert_eq!(decoded, Untagged::Cid(cid));
+    // With that feature disabled, it's the expected desired behaviour.
+    #[cfg(not(feature = "no-cid-as-bytes"))]
+    {
+        let decoded: Internally = from_slice(&cbor_map2).unwrap();
+        assert_eq!(decoded, Internally::Cid { cid });
+
+        let decoded: Untagged = from_slice(&cbor_cid).unwrap();
+        assert_eq!(decoded, Untagged::Cid(cid));
+    }
 }
 
 #[test]
