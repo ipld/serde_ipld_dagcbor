@@ -618,6 +618,11 @@ struct CidDeserializer<'a, R>(&'a mut Deserializer<R>);
 impl<'de, 'a, R: dec::Read<'de>> de::Deserializer<'de> for &'a mut CidDeserializer<'a, R> {
     type Error = DecodeError<R::Error>;
 
+    #[cfg(not(feature = "no-cid-as-bytes"))]
+    fn deserialize_any<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_bytes(visitor)
+    }
+    #[cfg(feature = "no-cid-as-bytes")]
     fn deserialize_any<V: de::Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
         Err(de::Error::custom(
             "Only bytes can be deserialized into a CID",
