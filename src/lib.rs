@@ -57,7 +57,7 @@
 //! ```
 //!
 //! There are a lot of options available to customize the format.
-//! To operate on untyped DAG-CBOR values have a look at the [`libipld_core::ipld::Ipld`] type.
+//! To operate on untyped DAG-CBOR values have a look at the [`ipld_core::ipld::Ipld`] type.
 //!
 //! # Type-based Serialization and Deserialization
 //! Serde provides a mechanism for low boilerplate serialization & deserialization of values to and
@@ -70,7 +70,7 @@
 //!
 //! ```rust
 //! use serde_ipld_dagcbor::from_slice;
-//! use libipld_core::ipld::Ipld;
+//! use ipld_core::ipld::Ipld;
 //!
 //! let slice = b"\x82\x01\xa1aaab";
 //! let value: Ipld = from_slice(slice).unwrap();

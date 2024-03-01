@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use libipld_core::ipld::Ipld;
-use serde::{Deserialize, Serialize};
+use ipld_core::ipld::Ipld;
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 struct TupleStruct(String, i32, u64);
@@ -50,7 +50,7 @@ fn serde() {
         array,
     };
 
-    let ipld = libipld_core::serde::to_ipld(data.clone()).unwrap();
+    let ipld = ipld_core::serde::to_ipld(data.clone()).unwrap();
     println!("{:?}", ipld);
 
     let data_ser = serde_ipld_dagcbor::to_vec(&ipld).unwrap();
@@ -74,7 +74,7 @@ fn serde() {
 #[test]
 fn unit_struct_not_supported() {
     let unit_array = vec![UnitStruct, UnitStruct, UnitStruct];
-    let ipld = libipld_core::serde::to_ipld(unit_array);
+    let ipld = ipld_core::serde::to_ipld(unit_array);
     assert!(ipld.is_err());
 }
 

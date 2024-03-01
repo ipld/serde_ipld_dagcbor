@@ -4,9 +4,10 @@
 use std::convert::{TryFrom, TryInto};
 
 use cid::Cid;
-use libipld_core::ipld::Ipld;
+use ipld_core::ipld::Ipld;
 use serde::{de, Deserialize};
 use serde_bytes::ByteBuf;
+use serde_derive::Deserialize;
 use serde_ipld_dagcbor::from_slice;
 
 /// The CID `bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy` encoded as CBOR

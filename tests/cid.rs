@@ -3,10 +3,10 @@ use std::io::Cursor;
 use std::str::FromStr;
 
 use cid::Cid;
-use libipld_core::ipld::Ipld;
+use ipld_core::ipld::Ipld;
 use serde::de;
-use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
+use serde_derive::{Deserialize, Serialize};
 use serde_ipld_dagcbor::{from_reader, from_slice, to_vec};
 
 #[test]

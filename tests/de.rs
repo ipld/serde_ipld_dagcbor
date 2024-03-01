@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use libipld_core::ipld::Ipld;
+use ipld_core::ipld::Ipld;
 use serde_ipld_dagcbor::{de, to_vec, DecodeError};
 
 #[test]
