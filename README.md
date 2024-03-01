@@ -12,7 +12,7 @@ This crate started as a fork of [serde_cbor], thanks everyone involved there.
 
 [Serde]: https://github.com/serde-rs/serde
 [DAG-CBOR]: https://ipld.io/specs/codecs/dag-cbor/spec/
-[ipld-core]: https://github.com/vmx/ipld-core
+[ipld-core]: https://github.com/ipld/rust-ipld-core
 [cbor4ii]: https://github.com/quininer/cbor4ii
 [serde_cbor]: https://github.com/pyfisch/cbor
 
