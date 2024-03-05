@@ -42,7 +42,7 @@ where
 }
 
 /// A structure for serializing Rust values to DAG-CBOR.
-struct Serializer<W> {
+pub struct Serializer<W> {
     writer: W,
 }
 
@@ -66,7 +66,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
     type SerializeTuple = BoundedCollect<'a, W>;
     type SerializeTupleStruct = BoundedCollect<'a, W>;
     type SerializeTupleVariant = BoundedCollect<'a, W>;
-    type SerializeMap = Collect<'a, W>;
+    type SerializeMap = CollectMap<'a, W>;
     type SerializeStruct = BoundedCollect<'a, W>;
     type SerializeStructVariant = BoundedCollect<'a, W>;
 
@@ -264,16 +264,8 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
     }
 
     #[inline]
-    fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        if let Some(len) = len {
-            enc::MapStartBounded(len).encode(&mut self.writer)?;
-        } else {
-            enc::MapStartUnbounded.encode(&mut self.writer)?;
-        }
-        Ok(Collect {
-            bounded: len.is_some(),
-            ser: self,
-        })
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+        Ok(CollectMap::new(self))
     }
 
     #[inline]
@@ -323,52 +315,20 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
         Ok(())
     }
 
-    fn collect_map<K, V, I>(self, iter: I) -> Result<(), Self::Error>
-    where
-        K: ser::Serialize,
-        V: ser::Serialize,
-        I: IntoIterator<Item = (K, V)>,
-    {
-        // CBOR RFC-7049 specifies a canonical sort order, where keys are sorted by length first.
-        // This was later revised with RFC-8949, but we need to stick to the original order to stay
-        // compatible with existing data.
-        // We first serialize each map entry into a buffer and then sort those buffers. Byte-wise
-        // comparison gives us the right order as keys in DAG-CBOR are always strings and prefixed
-        // with the length. Once sorted they are written to the actual output.
-        let mut buffer = BufWriter::new(Vec::new());
-        let mut entries = Vec::new();
-        for (key, value) in iter {
-            let mut mem_serializer = Serializer::new(&mut buffer);
-            key.serialize(&mut mem_serializer)
-                .map_err(|_| EncodeError::Msg("Map key cannot be serialized.".into()))?;
-            value
-                .serialize(&mut mem_serializer)
-                .map_err(|_| EncodeError::Msg("Map key cannot be serialized.".into()))?;
-            entries.push(buffer.buffer().to_vec());
-            buffer.clear();
-        }
-
-        enc::MapStartBounded(entries.len()).encode(&mut self.writer)?;
-        entries.sort_unstable();
-        for entry in entries {
-            self.writer.push(&entry)?;
-        }
-
-        Ok(())
-    }
-
     #[inline]
     fn is_human_readable(&self) -> bool {
         false
     }
 }
 
-struct Collect<'a, W> {
+/// Helper for processing collections.
+pub struct Collect<'a, W> {
     bounded: bool,
     ser: &'a mut Serializer<W>,
 }
 
-struct BoundedCollect<'a, W> {
+/// Helper for processing collections.
+pub struct BoundedCollect<'a, W> {
     ser: &'a mut Serializer<W>,
 }
 
@@ -436,26 +396,66 @@ impl<W: enc::Write> serde::ser::SerializeTupleVariant for BoundedCollect<'_, W> 
     }
 }
 
-impl<W: enc::Write> serde::ser::SerializeMap for Collect<'_, W> {
+/// CBOR RFC-7049 specifies a canonical sort order, where keys are sorted by length first. This
+/// was later revised with RFC-8949, but we need to stick to the original order to stay compatible
+/// with existing data.
+/// We first serialize each map entry (the key and the value) into a buffer and then sort those
+/// buffers. Byte-wise comparison gives us the right order as keys in DAG-CBOR are always strings
+/// and prefixed with the length. Once sorted they are written to the actual output.
+pub struct CollectMap<'a, W> {
+    buffer: BufWriter,
+    entries: Vec<Vec<u8>>,
+    ser: &'a mut Serializer<W>,
+}
+
+impl<'a, W> CollectMap<'a, W> {
+    fn new(ser: &'a mut Serializer<W>) -> Self {
+        Self {
+            buffer: BufWriter::new(Vec::new()),
+            entries: Vec::new(),
+            ser,
+        }
+    }
+}
+
+impl<W> serde::ser::SerializeMap for CollectMap<'_, W>
+where
+    W: enc::Write,
+{
     type Ok = ();
     type Error = EncodeError<W::Error>;
 
     #[inline]
     fn serialize_key<T: Serialize + ?Sized>(&mut self, key: &T) -> Result<(), Self::Error> {
-        key.serialize(&mut *self.ser)
+        // Instantiate a new serializer, so that the buffer can be re-used.
+        let mut mem_serializer = Serializer::new(&mut self.buffer);
+        key.serialize(&mut mem_serializer)
+            .map_err(|_| EncodeError::Msg("Map key cannot be serialized.".to_string()))?;
+        Ok(())
     }
 
     #[inline]
     fn serialize_value<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.ser)
+        // Instantiate a new serializer, so that the buffer can be re-used.
+        let mut mem_serializer = Serializer::new(&mut self.buffer);
+        value
+            .serialize(&mut mem_serializer)
+            .map_err(|_| EncodeError::Msg("Map value cannot be serialized.".to_string()))?;
+
+        self.entries.push(self.buffer.buffer().to_vec());
+        self.buffer.clear();
+
+        Ok(())
     }
 
     #[inline]
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        if !self.bounded {
-            enc::End.encode(&mut self.ser.writer)?;
+    fn end(mut self) -> Result<Self::Ok, Self::Error> {
+        enc::MapStartBounded(self.entries.len()).encode(&mut self.ser.writer)?;
+        // This sorting step makes sure we have the expexted order of the keys.
+        self.entries.sort_unstable();
+        for entry in self.entries {
+            self.ser.writer.push(&entry)?;
         }
-
         Ok(())
     }
 }

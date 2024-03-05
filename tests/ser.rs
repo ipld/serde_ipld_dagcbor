@@ -1,6 +1,12 @@
-use serde_bytes::{ByteBuf, Bytes};
-use serde_ipld_dagcbor::{from_slice, to_vec};
 use std::collections::BTreeMap;
+
+use serde::de::value::{self, MapDeserializer};
+use serde_bytes::{ByteBuf, Bytes};
+use serde_ipld_dagcbor::{
+    from_slice,
+    ser::{BufWriter, Serializer},
+    to_vec,
+};
 
 #[test]
 fn test_string() {
@@ -139,4 +145,20 @@ fn test_byte_string() {
 
     // byte strings > 2^32 bytes have 9-byte headers, but they take too much RAM
     // to test in Travis.
+}
+
+/// This test checks that the keys of a map are sorted correctly, independently of the order of the
+/// input.
+#[test]
+fn test_key_order_transcode_map() {
+    // CBOR encoded {"a": 1, "b": 2}
+    let expected = [0xa2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x02];
+
+    let data = vec![("b", 2), ("a", 1)];
+    let deserializer: MapDeserializer<'_, _, value::Error> = MapDeserializer::new(data.into_iter());
+    let writer = BufWriter::new(Vec::new());
+    let mut serializer = Serializer::new(writer);
+    serde_transcode::transcode(deserializer, &mut serializer).unwrap();
+    let result = serializer.into_inner().into_inner();
+    assert_eq!(result, expected);
 }
