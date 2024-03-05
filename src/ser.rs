@@ -62,7 +62,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
     type Ok = ();
     type Error = EncodeError<W::Error>;
 
-    type SerializeSeq = Collect<'a, W>;
+    type SerializeSeq = CollectSeq<'a, W>;
     type SerializeTuple = BoundedCollect<'a, W>;
     type SerializeTupleStruct = BoundedCollect<'a, W>;
     type SerializeTupleVariant = BoundedCollect<'a, W>;
@@ -223,15 +223,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
 
     #[inline]
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        if let Some(len) = len {
-            enc::ArrayStartBounded(len).encode(&mut self.writer)?;
-        } else {
-            enc::ArrayStartUnbounded.encode(&mut self.writer)?;
-        }
-        Ok(Collect {
-            bounded: len.is_some(),
-            ser: self,
-        })
+        CollectSeq::new(self, len)
     }
 
     #[inline]
@@ -321,10 +313,32 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
     }
 }
 
-/// Helper for processing collections.
-pub struct Collect<'a, W> {
-    bounded: bool,
+/// Struct for implementign SerializeSeq.
+pub struct CollectSeq<'a, W> {
+    /// The number of elements. This is used in case the number of elements is not known
+    /// beforehand.
+    count: usize,
     ser: &'a mut Serializer<W>,
+    /// An in-memory serializer in case the number of elements is not known beforehand.
+    mem_ser: Option<Serializer<BufWriter>>,
+}
+
+impl<'a, W: enc::Write> CollectSeq<'a, W> {
+    /// If the length of the sequence is given, use it. Else buffer the sequence in order to count
+    /// the number of elements, which is then written before the elements are.
+    fn new(ser: &'a mut Serializer<W>, len: Option<usize>) -> Result<Self, EncodeError<W::Error>> {
+        let mem_ser = if let Some(len) = len {
+            enc::ArrayStartBounded(len).encode(&mut ser.writer)?;
+            None
+        } else {
+            Some(Serializer::new(BufWriter::new(Vec::new())))
+        };
+        Ok(Self {
+            count: 0,
+            ser,
+            mem_ser,
+        })
+    }
 }
 
 /// Helper for processing collections.
@@ -332,19 +346,29 @@ pub struct BoundedCollect<'a, W> {
     ser: &'a mut Serializer<W>,
 }
 
-impl<W: enc::Write> serde::ser::SerializeSeq for Collect<'_, W> {
+impl<W: enc::Write> serde::ser::SerializeSeq for CollectSeq<'_, W> {
     type Ok = ();
     type Error = EncodeError<W::Error>;
 
     #[inline]
     fn serialize_element<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.ser)
+        self.count += 1;
+        if let Some(ser) = self.mem_ser.as_mut() {
+            value
+                .serialize(&mut *ser)
+                .map_err(|_| EncodeError::Msg("List element cannot be serialized".to_string()))
+        } else {
+            value.serialize(&mut *self.ser)
+        }
     }
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        if !self.bounded {
-            enc::End.encode(&mut self.ser.writer)?;
+        // Data was buffered in order to be able to write out the number of elements before they
+        // are serialized.
+        if let Some(ser) = self.mem_ser {
+            enc::ArrayStartBounded(self.count).encode(&mut self.ser.writer)?;
+            self.ser.writer.push(&ser.into_inner().into_inner())?;
         }
 
         Ok(())

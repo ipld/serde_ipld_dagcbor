@@ -1,6 +1,6 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, iter};
 
-use serde::de::value::{self, MapDeserializer};
+use serde::de::value::{self, MapDeserializer, SeqDeserializer};
 use serde_bytes::{ByteBuf, Bytes};
 use serde_ipld_dagcbor::{
     from_slice,
@@ -156,6 +156,34 @@ fn test_key_order_transcode_map() {
 
     let data = vec![("b", 2), ("a", 1)];
     let deserializer: MapDeserializer<'_, _, value::Error> = MapDeserializer::new(data.into_iter());
+    let writer = BufWriter::new(Vec::new());
+    let mut serializer = Serializer::new(writer);
+    serde_transcode::transcode(deserializer, &mut serializer).unwrap();
+    let result = serializer.into_inner().into_inner();
+    assert_eq!(result, expected);
+}
+
+// This test makes sure that even unbound lists are not encoded as such (as lists in DAG-CBOR need
+// to be finite).
+#[test]
+fn test_non_unbound_list() {
+    // Create an iterator that has no size hint. This would trigger the "unbounded code path" for
+    // sequences.
+    let one_two_three_iter = iter::successors(
+        Some(1),
+        move |&num| {
+            if num < 3 {
+                Some(num + 1)
+            } else {
+                None
+            }
+        },
+    );
+
+    // CBOR encoded [1, 2, 3]
+    let expected = [0x83, 0x01, 0x02, 0x03];
+
+    let deserializer: SeqDeserializer<_, value::Error> = SeqDeserializer::new(one_two_three_iter);
     let writer = BufWriter::new(Vec::new());
     let mut serializer = Serializer::new(writer);
     serde_transcode::transcode(deserializer, &mut serializer).unwrap();
