@@ -112,10 +112,13 @@
 #![deny(missing_docs)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(not(feature = "std"))]
 extern crate alloc;
 
 mod cbor4ii_nonpub;
+// The `Codec` implementation is only available if the `no-cid-as-bytes` feature is disabled, due
+// to the links being extracted with a Serde based approach.
+#[cfg(all(feature = "std", not(feature = "no-cid-as-bytes")))]
+pub mod codec;
 pub mod de;
 pub mod error;
 pub mod ser;

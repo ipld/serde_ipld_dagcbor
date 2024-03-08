@@ -1,13 +1,11 @@
 use std::convert::{TryFrom, TryInto};
-use std::io::Cursor;
 use std::str::FromStr;
 
-use cid::Cid;
-use ipld_core::ipld::Ipld;
+use ipld_core::{cid::Cid, ipld::Ipld};
 use serde::de;
 use serde_bytes::ByteBuf;
 use serde_derive::{Deserialize, Serialize};
-use serde_ipld_dagcbor::{from_reader, from_slice, to_vec};
+use serde_ipld_dagcbor::{from_slice, to_vec};
 
 #[test]
 fn test_cid_struct() {
@@ -352,8 +350,6 @@ fn test_cid_decode_from_reader() {
     let cid_encoded = [
         0xd8, 0x2a, 0x49, 0x00, 0x01, 0xce, 0x01, 0x9b, 0x01, 0x02, 0x63, 0xc8,
     ];
-    println!("vmx: cid: {:?}", cid_encoded);
-    let cid_decoded: Cid = from_reader(Cursor::new(&cid_encoded)).unwrap();
-    println!("vmx: cid: {:?}", cid_decoded);
+    let cid_decoded: Cid = from_slice(&cid_encoded).unwrap();
     assert_eq!(&cid_encoded[4..], &cid_decoded.to_bytes());
 }

@@ -3,8 +3,7 @@
 /// file also contains an example for a kinded enum.
 use std::convert::{TryFrom, TryInto};
 
-use cid::Cid;
-use ipld_core::ipld::Ipld;
+use ipld_core::{cid::Cid, ipld::Ipld};
 use serde::{de, Deserialize};
 use serde_bytes::ByteBuf;
 use serde_derive::Deserialize;

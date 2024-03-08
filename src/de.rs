@@ -7,7 +7,7 @@ use std::borrow::Cow;
 
 use cbor4ii::core::dec::{self, Decode};
 use cbor4ii::core::{major, types, utils::SliceReader};
-use cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
+use ipld_core::cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
 use serde::de::{self, Visitor};
 
 use crate::cbor4ii_nonpub::{marker, peek_one, pull_one};
@@ -84,7 +84,7 @@ where
 
 /// A Serde `Deserialize`r of DAG-CBOR data.
 #[derive(Debug)]
-struct Deserializer<R> {
+pub struct Deserializer<R> {
     reader: R,
 }
 
@@ -92,6 +92,15 @@ impl<R> Deserializer<R> {
     /// Constructs a `Deserializer` which reads from a `Read`er.
     pub fn from_reader(reader: R) -> Deserializer<R> {
         Deserializer { reader }
+    }
+}
+
+impl<'a> Deserializer<SliceReader<'a>> {
+    /// Constructs a `Deserializer` that reads from a slice.
+    pub fn from_slice(buf: &'a [u8]) -> Self {
+        Deserializer {
+            reader: SliceReader::new(buf),
+        }
     }
 }
 
