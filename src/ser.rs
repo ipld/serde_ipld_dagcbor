@@ -13,7 +13,7 @@ use cbor4ii::core::{
     enc::{self, Encode},
     types,
 };
-use cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
+use ipld_core::cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
 use serde::{ser, Serialize};
 
 use crate::error::EncodeError;

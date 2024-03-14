@@ -1,10 +1,10 @@
 //! When serializing or deserializing DAG-CBOR goes wrong.
 
-use core::fmt;
-use core::num::TryFromIntError;
-
-#[cfg(not(feature = "std"))]
-use alloc::string::{String, ToString};
+use alloc::{
+    collections::TryReserveError,
+    string::{String, ToString},
+};
+use core::{convert::Infallible, fmt, num::TryFromIntError};
 
 use serde::{de, ser};
 
@@ -194,5 +194,62 @@ impl<E: fmt::Debug> From<cbor4ii::DecodeError<E>> for DecodeError<E> {
             // Needed as `cbor4ii::EncodeError` is markes as non_exhaustive
             _ => DecodeError::Msg(err.to_string()),
         }
+    }
+}
+
+/// Encode and Decode error combined.
+#[derive(Debug)]
+pub enum CodecError {
+    /// A decoding error.
+    Decode(DecodeError<Infallible>),
+    /// An encoding error.
+    Encode(EncodeError<TryReserveError>),
+    /// A decoding error.
+    #[cfg(feature = "std")]
+    DecodeIo(DecodeError<std::io::Error>),
+    /// An encoding error.
+    #[cfg(feature = "std")]
+    EncodeIo(EncodeError<std::io::Error>),
+}
+
+impl fmt::Display for CodecError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Decode(error) => write!(f, "decode error: {}", error),
+            Self::Encode(error) => write!(f, "encode error: {}", error),
+            #[cfg(feature = "std")]
+            Self::DecodeIo(error) => write!(f, "decode io error: {}", error),
+            #[cfg(feature = "std")]
+            Self::EncodeIo(error) => write!(f, "encode io error: {}", error),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for CodecError {}
+
+impl From<DecodeError<Infallible>> for CodecError {
+    fn from(error: DecodeError<Infallible>) -> Self {
+        Self::Decode(error)
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<DecodeError<std::io::Error>> for CodecError {
+    fn from(error: DecodeError<std::io::Error>) -> Self {
+        Self::DecodeIo(error)
+    }
+}
+
+impl From<EncodeError<TryReserveError>> for CodecError {
+    fn from(error: EncodeError<TryReserveError>) -> Self {
+        Self::Encode(error)
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<EncodeError<std::io::Error>> for CodecError {
+    fn from(error: EncodeError<std::io::Error>) -> Self {
+        Self::EncodeIo(error)
     }
 }

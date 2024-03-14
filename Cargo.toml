@@ -16,17 +16,16 @@ edition = "2018"
 
 [dependencies]
 cbor4ii = { version = "0.2.14", default-features = false, features = ["use_alloc"] }
-cid = { version = "0.11.0", default-features = false, features = ["serde-codec"] }
+ipld-core = { version = "0.3.2", default-features = false, features = ["serde"] }
 scopeguard = "1.1.0"
 serde = { version = "1.0.164", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-ipld-core = { version = "0.2.0", features = ["serde"] }
 serde_derive = { version = "1.0.164", default-features = false }
 serde_bytes = { version = "0.11.9", default-features = false, features = ["alloc"]}
 
 [features]
 default = ["std"]
-std = ["cbor4ii/use_std", "cid/std", "serde/std", "serde_bytes/std"]
+std = ["cbor4ii/use_std", "ipld-core/std", "serde/std", "serde_bytes/std"]
 # Prevent deserializing CIDs as bytes as much as possible.
 no-cid-as-bytes = []
