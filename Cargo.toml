@@ -16,8 +16,7 @@ edition = "2018"
 
 [dependencies]
 cbor4ii = { version = "0.2.14", default-features = false, features = ["use_alloc"] }
-ipld-core = { version = "0.3.0", default-features = false, features = ["serde"] }
-ipld-extract-links = "0.1.0"
+ipld-core = { version = "0.3.2", default-features = false, features = ["serde"] }
 scopeguard = "1.1.0"
 serde = { version = "1.0.164", default-features = false, features = ["alloc"] }
 

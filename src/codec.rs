@@ -5,8 +5,8 @@ use std::io::{BufRead, Write};
 use ipld_core::{
     cid::Cid,
     codec::{Codec, Links},
+    serde::ExtractLinks,
 };
-use ipld_extract_links::ExtractLinks;
 use serde::{de::Deserialize, ser::Serialize};
 
 use crate::{de::Deserializer, error::CodecError};
