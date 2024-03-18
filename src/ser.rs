@@ -424,8 +424,7 @@ impl<W: enc::Write> serde::ser::SerializeTupleVariant for BoundedCollect<'_, W> 
 /// was later revised with RFC-8949, but we need to stick to the original order to stay compatible
 /// with existing data.
 /// We first serialize each map entry (the key and the value) into a buffer and then sort those
-/// buffers. Byte-wise comparison gives us the right order as keys in DAG-CBOR are always strings
-/// and prefixed with the length. Once sorted they are written to the actual output.
+/// buffers. Once sorted they are written to the actual output.
 pub struct CollectMap<'a, W> {
     buffer: BufWriter,
     entries: Vec<Vec<u8>>,
@@ -475,7 +474,10 @@ where
     #[inline]
     fn end(mut self) -> Result<Self::Ok, Self::Error> {
         enc::MapStartBounded(self.entries.len()).encode(&mut self.ser.writer)?;
-        // This sorting step makes sure we have the expexted order of the keys.
+        // This sorting step makes sure we have the expected order of the keys. Byte-wise
+        // comparison gives us the right order as keys in DAG-CBOR are always (text) strings, hence
+        // have the same CBOR major type 3. The length of the string is encoded in the following
+        // bits. This means that a shorter string sorts before a longer string.
         self.entries.sort_unstable();
         for entry in self.entries {
             self.ser.writer.push(&entry)?;
