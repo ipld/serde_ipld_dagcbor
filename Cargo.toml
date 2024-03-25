@@ -26,7 +26,12 @@ serde_bytes = { version = "0.11.9", default-features = false, features = ["alloc
 serde-transcode = "1.1.1"
 
 [features]
-default = ["std"]
+default = ["codec", "std"]
 std = ["cbor4ii/use_std", "ipld-core/std", "serde/std", "serde_bytes/std"]
+# Enable the `Codec` trait implementation. It's a separate feature as it needs Rust >= 1.75.
+codec = ["ipld-core/codec"]
 # Prevent deserializing CIDs as bytes as much as possible.
 no-cid-as-bytes = []
+
+[patch.crates-io]
+ipld-core = { git = "https://github.com/ipld/rust-ipld-core", branch = "codec-feature-flag" }
