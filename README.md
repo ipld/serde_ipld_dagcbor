@@ -69,6 +69,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 Features
 --------
 
+### `codec`
+
+The `codec` feature is enabled by default, it provides the `Codec` trait, which enables encoding and decoding independent of the IPLD Codec. The minimum supported Rust version (MSRV) can significantly be reduced to 1.64 by disabling this feature.
+
+
 ### `no-cid-as-bytes`
 
 Sometimes it is desired that a CID is not accidentally deserialized into bytes. This can happen because the intermediate serde data model does not retain enough information to be able to differentiate between a bytes container and a CID container when there is a conflicting choice to be made, as in the case of some enum cases. The `no-cid-as-bytes` feature can be enabled in order to error at runtime in such cases.
