@@ -1,8 +1,6 @@
 //! Serialization.
 #[cfg(not(feature = "std"))]
-use alloc::collections::TryReserveError;
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{collections::TryReserveError, string::ToString, vec::Vec};
 #[cfg(feature = "std")]
 use std::collections::TryReserveError;
 

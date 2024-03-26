@@ -30,16 +30,24 @@ jobs:
 
       - name: Check Code Format
         run: cargo fmt --all -- --check
-        shell: bash
 
-      - name: Code Lint
+      - name: Code lint with default features
         run: cargo clippy --all-targets --workspace -- -D warnings
-        shell: bash
 
-      - name: Test
+      - name: Code lint without default features
+        run: cargo clippy --all-targets --workspace --no-default-features -- -D warnings
+
+      - name: Code lint with all features
+        run: cargo clippy --all-targets --workspace --all-features -- -D warnings
+
+      - name: Test with default features
         run: cargo test --all-targets --workspace
-        shell: bash
+
+      - name: Test without default features
+        run: cargo test --all-targets --workspace --no-default-features
+
+      - name: Test with all features
+        run: cargo test --all-targets --workspace --all-features
 
       - name: Test no-cid-as-bytes feature
         run: cargo test --all-targets --workspace --features no-cid-as-bytes
-        shell: bash
