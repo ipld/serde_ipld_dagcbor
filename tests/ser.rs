@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, iter};
 
 use serde::de::value::{self, MapDeserializer, SeqDeserializer};
 use serde_bytes::{ByteBuf, Bytes};
+use serde_derive::Serialize;
 use serde_ipld_dagcbor::{
     from_slice,
     ser::{BufWriter, Serializer},
@@ -189,4 +190,47 @@ fn test_non_unbound_list() {
     serde_transcode::transcode(deserializer, &mut serializer).unwrap();
     let result = serializer.into_inner().into_inner();
     assert_eq!(result, expected);
+}
+
+#[test]
+fn test_struct_canonical() {
+    #[derive(Serialize)]
+    struct First {
+        a: u32,
+        b: u32,
+    }
+    #[derive(Serialize)]
+    struct Second {
+        b: u32,
+        a: u32,
+    }
+
+    let first = First { a: 1, b: 2 };
+    let second = Second { a: 1, b: 2 };
+
+    let first_bytes = serde_ipld_dagcbor::to_vec(&first).unwrap();
+    let second_bytes = serde_ipld_dagcbor::to_vec(&second).unwrap();
+
+    assert_eq!(first_bytes, second_bytes);
+}
+
+#[test]
+fn test_struct_variant_canonical() {
+    #[derive(Serialize)]
+    enum First {
+        Data { a: u8, b: u8, c: u8 },
+    }
+
+    #[derive(Serialize)]
+    enum Second {
+        Data { b: u8, c: u8, a: u8 },
+    }
+
+    let first = First::Data { a: 1, b: 2, c: 3 };
+    let second = Second::Data { a: 1, b: 2, c: 3 };
+
+    let first_bytes = serde_ipld_dagcbor::to_vec(&first).unwrap();
+    let second_bytes = serde_ipld_dagcbor::to_vec(&second).unwrap();
+
+    assert_eq!(first_bytes, second_bytes);
 }

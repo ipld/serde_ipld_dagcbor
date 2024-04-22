@@ -65,8 +65,8 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
     type SerializeTupleStruct = BoundedCollect<'a, W>;
     type SerializeTupleVariant = BoundedCollect<'a, W>;
     type SerializeMap = CollectMap<'a, W>;
-    type SerializeStruct = BoundedCollect<'a, W>;
-    type SerializeStructVariant = BoundedCollect<'a, W>;
+    type SerializeStruct = CollectMap<'a, W>;
+    type SerializeStructVariant = CollectMap<'a, W>;
 
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
@@ -265,7 +265,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
         enc::MapStartBounded(len).encode(&mut self.writer)?;
-        Ok(BoundedCollect { ser: self })
+        Ok(CollectMap::new(self))
     }
 
     #[inline]
@@ -279,7 +279,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
         enc::MapStartBounded(1).encode(&mut self.writer)?;
         variant.encode(&mut self.writer)?;
         enc::MapStartBounded(len).encode(&mut self.writer)?;
-        Ok(BoundedCollect { ser: self })
+        Ok(CollectMap::new(self))
     }
 
     #[inline]
@@ -429,7 +429,10 @@ pub struct CollectMap<'a, W> {
     ser: &'a mut Serializer<W>,
 }
 
-impl<'a, W> CollectMap<'a, W> {
+impl<'a, W> CollectMap<'a, W>
+where
+    W: enc::Write,
+{
     fn new(ser: &'a mut Serializer<W>) -> Self {
         Self {
             buffer: BufWriter::new(Vec::new()),
@@ -437,31 +440,21 @@ impl<'a, W> CollectMap<'a, W> {
             ser,
         }
     }
-}
 
-impl<W> serde::ser::SerializeMap for CollectMap<'_, W>
-where
-    W: enc::Write,
-{
-    type Ok = ();
-    type Error = EncodeError<W::Error>;
-
-    #[inline]
-    fn serialize_key<T: Serialize + ?Sized>(&mut self, key: &T) -> Result<(), Self::Error> {
+    fn serialize<T: Serialize + ?Sized>(
+        &mut self,
+        maybe_key: Option<&'static str>,
+        value: &T,
+    ) -> Result<(), EncodeError<W::Error>> {
         // Instantiate a new serializer, so that the buffer can be re-used.
         let mut mem_serializer = Serializer::new(&mut self.buffer);
-        key.serialize(&mut mem_serializer)
-            .map_err(|_| EncodeError::Msg("Map key cannot be serialized.".to_string()))?;
-        Ok(())
-    }
-
-    #[inline]
-    fn serialize_value<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        // Instantiate a new serializer, so that the buffer can be re-used.
-        let mut mem_serializer = Serializer::new(&mut self.buffer);
+        if let Some(key) = maybe_key {
+            key.serialize(&mut mem_serializer)
+                .map_err(|_| EncodeError::Msg("Struct key cannot be serialized.".to_string()))?;
+        }
         value
             .serialize(&mut mem_serializer)
-            .map_err(|_| EncodeError::Msg("Map value cannot be serialized.".to_string()))?;
+            .map_err(|_| EncodeError::Msg("Struct value cannot be serialized.".to_string()))?;
 
         self.entries.push(self.buffer.buffer().to_vec());
         self.buffer.clear();
@@ -469,9 +462,7 @@ where
         Ok(())
     }
 
-    #[inline]
-    fn end(mut self) -> Result<Self::Ok, Self::Error> {
-        enc::MapStartBounded(self.entries.len()).encode(&mut self.ser.writer)?;
+    fn end(mut self) -> Result<(), EncodeError<W::Error>> {
         // This sorting step makes sure we have the expected order of the keys. Byte-wise
         // comparison gives us the right order as keys in DAG-CBOR are always (text) strings, hence
         // have the same CBOR major type 3. The length of the string is encoded in the following
@@ -484,27 +475,39 @@ where
     }
 }
 
-impl<W: enc::Write> serde::ser::SerializeStruct for BoundedCollect<'_, W> {
+impl<W> serde::ser::SerializeMap for CollectMap<'_, W>
+where
+    W: enc::Write,
+{
     type Ok = ();
     type Error = EncodeError<W::Error>;
 
     #[inline]
-    fn serialize_field<T: Serialize + ?Sized>(
-        &mut self,
-        key: &'static str,
-        value: &T,
-    ) -> Result<(), Self::Error> {
-        key.serialize(&mut *self.ser)?;
-        value.serialize(&mut *self.ser)
+    fn serialize_key<T: Serialize + ?Sized>(&mut self, key: &T) -> Result<(), Self::Error> {
+        // The key needs to be add to the buffer without any further operations. Serializing the
+        // value will then do the necessary flushing etc.
+        let mut mem_serializer = Serializer::new(&mut self.buffer);
+        key.serialize(&mut mem_serializer)
+            .map_err(|_| EncodeError::Msg("Map key cannot be serialized.".to_string()))?;
+        Ok(())
+    }
+
+    #[inline]
+    fn serialize_value<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
+        self.serialize(None, value)
     }
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        Ok(())
+        enc::MapStartBounded(self.entries.len()).encode(&mut self.ser.writer)?;
+        self.end()
     }
 }
 
-impl<W: enc::Write> serde::ser::SerializeStructVariant for BoundedCollect<'_, W> {
+impl<W> serde::ser::SerializeStruct for CollectMap<'_, W>
+where
+    W: enc::Write,
+{
     type Ok = ();
     type Error = EncodeError<W::Error>;
 
@@ -514,13 +517,34 @@ impl<W: enc::Write> serde::ser::SerializeStructVariant for BoundedCollect<'_, W>
         key: &'static str,
         value: &T,
     ) -> Result<(), Self::Error> {
-        key.serialize(&mut *self.ser)?;
-        value.serialize(&mut *self.ser)
+        self.serialize(Some(key), value)
     }
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        Ok(())
+        self.end()
+    }
+}
+
+impl<W> serde::ser::SerializeStructVariant for CollectMap<'_, W>
+where
+    W: enc::Write,
+{
+    type Ok = ();
+    type Error = EncodeError<W::Error>;
+
+    #[inline]
+    fn serialize_field<T: Serialize + ?Sized>(
+        &mut self,
+        key: &'static str,
+        value: &T,
+    ) -> Result<(), Self::Error> {
+        self.serialize(Some(key), value)
+    }
+
+    #[inline]
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        self.end()
     }
 }
 
