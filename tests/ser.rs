@@ -212,25 +212,34 @@ fn test_struct_canonical() {
     let second_bytes = serde_ipld_dagcbor::to_vec(&second).unwrap();
 
     assert_eq!(first_bytes, second_bytes);
+    // Do not only make sure that the order is the same, but also that it's correct.
+    assert_eq!(first_bytes, b"\xa2\x61a\x01\x61b\x02")
 }
 
 #[test]
 fn test_struct_variant_canonical() {
+    // The `abc` is there to make sure it really follows the DAG-CBOR sorting order, which sorts by
+    // length of the keys first, then lexicographically. It means that `abc` sorts *after* `b`.
     #[derive(Serialize)]
     enum First {
-        Data { a: u8, b: u8, c: u8 },
+        Data { a: u8, b: u8, abc: u8 },
     }
 
     #[derive(Serialize)]
     enum Second {
-        Data { b: u8, c: u8, a: u8 },
+        Data { b: u8, abc: u8, a: u8 },
     }
 
-    let first = First::Data { a: 1, b: 2, c: 3 };
-    let second = Second::Data { a: 1, b: 2, c: 3 };
+    let first = First::Data { a: 1, b: 2, abc: 3 };
+    let second = Second::Data { a: 1, b: 2, abc: 3 };
 
     let first_bytes = serde_ipld_dagcbor::to_vec(&first).unwrap();
     let second_bytes = serde_ipld_dagcbor::to_vec(&second).unwrap();
 
     assert_eq!(first_bytes, second_bytes);
+    // Do not only make sure that the order is the same, but also that it's correct.
+    assert_eq!(
+        first_bytes,
+        b"\xa1\x64Data\xa3\x61a\x01\x61b\x02\x63abc\x03"
+    )
 }
