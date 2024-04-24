@@ -464,9 +464,10 @@ where
 
     fn end(mut self) -> Result<(), EncodeError<W::Error>> {
         // This sorting step makes sure we have the expected order of the keys. Byte-wise
-        // comparison gives us the right order as keys in DAG-CBOR are always (text) strings, hence
-        // have the same CBOR major type 3. The length of the string is encoded in the following
-        // bits. This means that a shorter string sorts before a longer string.
+        // comparison over the encoded forms gives us the right order as keys in DAG-CBOR are
+        // always (text) strings, hence have the same CBOR major type 3. The length of the string
+        // is encoded in the prefix bits along with the major type. This means that a shorter string
+        // always sorts before a longer string even with the compact length representation.
         self.entries.sort_unstable();
         for entry in self.entries {
             self.ser.writer.push(&entry)?;
