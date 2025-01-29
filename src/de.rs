@@ -454,14 +454,16 @@ impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     ) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
         let array_start = dec::ArrayStart::decode(&mut de.reader)?;
 
-        if array_start.0 == Some(len) {
-            Ok(Accessor { de, len })
-        } else {
-            Err(DecodeError::RequireLength {
+        match array_start.0 {
+            Some(decoded_len) => Ok(Accessor {
+                de,
+                len: decoded_len,
+            }),
+            None => Err(DecodeError::RequireLength {
                 name: "tuple",
                 expect: len,
                 value: array_start.0.unwrap_or(0),
-            })
+            }),
         }
     }
 
