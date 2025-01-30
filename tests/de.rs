@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use ipld_core::ipld::Ipld;
 use serde_ipld_dagcbor::{de, to_vec, DecodeError};
+use serde_tuple::{Deserialize_tuple, Serialize_tuple};
 
 #[test]
 fn test_string1() {
@@ -313,4 +314,199 @@ fn error_on_undefined() {
         result.unwrap_err(),
         DecodeError::Unsupported { .. }
     ));
+}
+
+use std::convert::Infallible;
+
+// Test for default values inside tuple structs
+#[derive(Debug, PartialEq, Deserialize_tuple, Serialize_tuple, Default, Clone)]
+struct TupleWithDefaultsStruct {
+    #[serde(default)]
+    a: u32,
+    #[serde(default)]
+    b: String,
+}
+
+// Test for default values inside tuple structs nested inside other tuple structs
+#[derive(Debug, PartialEq, Deserialize_tuple, Serialize_tuple, Clone)]
+struct TupleOuterStruct {
+    boop: u64,
+    inner: TupleWithDefaultsStruct,
+    #[serde(default)]
+    bop: u64,
+}
+
+// Test for default values inside tuple structs nested inside other tuple structs where
+// the outer struct has a default value itself
+#[derive(Debug, PartialEq, Deserialize_tuple, Serialize_tuple, Clone)]
+struct TupleOuterDefaultableStruct {
+    boop: u64,
+    #[serde(default)]
+    inner: TupleWithDefaultsStruct,
+}
+
+// The expected result is either an Ok value or an error check closure.
+enum Expected<T> {
+    Ok(T),
+    Err(fn(&DecodeError<Infallible>) -> bool),
+}
+
+struct TestCase<T> {
+    hex: &'static str,
+    expected: Expected<T>,
+}
+
+#[test]
+fn test_default_values() {
+    let basic_cases = [
+        // [] -> default
+        TestCase {
+            hex: "80",
+            expected: Expected::Ok(TupleWithDefaultsStruct {
+                a: 0,              // default
+                b: "".to_string(), // default
+            }),
+        },
+        // [101] -> set a and default b
+        TestCase {
+            hex: "811865",
+            expected: Expected::Ok(TupleWithDefaultsStruct {
+                a: 101,
+                b: "".to_string(), // default
+            }),
+        },
+        // [202, "yep"]
+        TestCase {
+            hex: "8218ca63796570",
+            expected: Expected::Ok(TupleWithDefaultsStruct {
+                a: 202,
+                b: "yep".to_string(),
+            }),
+        },
+        // [202,"nup",false] has too many elements so it errors with RequireLength
+        TestCase {
+            hex: "8318ca636e7570f4",
+            expected: Expected::Err(|err| matches!(err, DecodeError::TrailingData)),
+        },
+    ];
+
+    let outer_cases = [
+        // [505,[],606]
+        TestCase {
+            hex: "831901f98019025e",
+            expected: Expected::Ok(TupleOuterStruct {
+                boop: 505,
+                inner: TupleWithDefaultsStruct {
+                    a: 0,              // default
+                    b: "".to_string(), // default
+                },
+                bop: 606,
+            }),
+        },
+        // [505,[202,"yep"],606]
+        TestCase {
+            hex: "831901f98218ca6379657019025e",
+            expected: Expected::Ok(TupleOuterStruct {
+                boop: 505,
+                inner: TupleWithDefaultsStruct {
+                    a: 202,
+                    b: "yep".to_string(),
+                },
+                bop: 606,
+            }),
+        },
+        // [505,[202,"nup",false],606] has too many elements on inner so it errors with RequireLength
+        TestCase {
+            hex: "831901f98318ca636e7570f419025e",
+            expected: Expected::Err(|err| {
+                // false is 0xf4, out of place, and we expect to roll into an int (with major 0)
+                matches!(err, DecodeError::Mismatch { expect_major, byte } if *expect_major == 0 && *byte == 0xf4)
+            }),
+        },
+        // [505,[]]
+        TestCase {
+            hex: "821901f980",
+            expected: Expected::Ok(TupleOuterStruct {
+                boop: 505,
+                inner: TupleWithDefaultsStruct {
+                    a: 0,              // default
+                    b: "".to_string(), // default
+                },
+                bop: 0, // default
+            }),
+        },
+        // [505,[202,"yep"]]
+        TestCase {
+            hex: "821901f98218ca63796570",
+            expected: Expected::Ok(TupleOuterStruct {
+                boop: 505,
+                inner: TupleWithDefaultsStruct {
+                    a: 202,
+                    b: "yep".to_string(),
+                },
+                bop: 0, // default
+            }),
+        },
+    ];
+
+    let outer_defaultable_cases = [
+        // [404] -> default inner
+        TestCase {
+            hex: "81190194",
+            expected: Expected::Ok(TupleOuterDefaultableStruct {
+                boop: 404,
+                inner: TupleWithDefaultsStruct {
+                    // default
+                    a: 0,
+                    b: "".to_string(),
+                },
+            }),
+        },
+        // [404,[]] -> default inner
+        TestCase {
+            hex: "8219019480",
+            expected: Expected::Ok(TupleOuterDefaultableStruct {
+                boop: 404,
+                inner: TupleWithDefaultsStruct {
+                    a: 0,              // default
+                    b: "".to_string(), // default
+                },
+            }),
+        },
+        // [] -> error because inner has too few elements
+        TestCase {
+            hex: "80",
+            expected: Expected::Err(
+                |err| matches!(err, DecodeError::Msg(ref m) if m == "invalid length 0, expected tuple struct Inner with 2 elements"),
+            ),
+        },
+    ];
+
+    check_cases(&basic_cases);
+    check_cases(&outer_cases);
+    check_cases(&outer_defaultable_cases);
+
+    fn check_cases<T>(test_cases: &[TestCase<T>])
+    where
+        T: serde::de::DeserializeOwned + std::fmt::Debug + PartialEq,
+    {
+        for case in test_cases {
+            let input = const_hex::decode(case.hex).unwrap();
+            let result = from_slice::<T>(&input);
+            match case.expected {
+                Expected::Ok(ref expected_val) => {
+                    assert_eq!(result.unwrap(), *expected_val, "for input {}", case.hex);
+                }
+                Expected::Err(check) => {
+                    let err = result.unwrap_err();
+                    assert!(
+                        check(&err),
+                        "for input {} got unexpected error: {:?}",
+                        case.hex,
+                        err
+                    );
+                }
+            }
+        }
+    }
 }

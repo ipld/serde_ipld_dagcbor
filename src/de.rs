@@ -162,7 +162,7 @@ macro_rules! deserialize_type {
     };
 }
 
-impl<'de, 'a, R: dec::Read<'de>> serde::Deserializer<'de> for &'a mut Deserializer<R> {
+impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     type Error = DecodeError<R::Error>;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -450,18 +450,13 @@ impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     #[inline]
     pub fn tuple(
         de: &'a mut Deserializer<R>,
-        len: usize,
+        _exp_len: usize,
     ) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
         let array_start = dec::ArrayStart::decode(&mut de.reader)?;
-
-        if array_start.0 == Some(len) {
+        if let Some(len) = array_start.0 {
             Ok(Accessor { de, len })
         } else {
-            Err(DecodeError::RequireLength {
-                name: "tuple",
-                expect: len,
-                value: array_start.0.unwrap_or(0),
-            })
+            Err(DecodeError::IndefiniteSize)
         }
     }
 
@@ -475,7 +470,7 @@ impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     }
 }
 
-impl<'de, 'a, R> de::SeqAccess<'de> for Accessor<'a, R>
+impl<'de, R> de::SeqAccess<'de> for Accessor<'_, R>
 where
     R: dec::Read<'de>,
 {
@@ -500,7 +495,7 @@ where
     }
 }
 
-impl<'de, 'a, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'a, R> {
+impl<'de, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'_, R> {
     type Error = DecodeError<R::Error>;
 
     #[inline]
@@ -570,7 +565,7 @@ where
     }
 }
 
-impl<'de, 'a, R> de::VariantAccess<'de> for EnumAccessor<'a, R>
+impl<'de, R> de::VariantAccess<'de> for EnumAccessor<'_, R>
 where
     R: dec::Read<'de>,
 {
