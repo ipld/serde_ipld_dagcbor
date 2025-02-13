@@ -154,14 +154,14 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     {
         let mut de = self.try_step()?;
         let mut seq = Accessor::array(&mut de)?;
-        let expect = seq.len;
+        let value = seq.len;
         let res = visitor.visit_seq(&mut seq)?;
         match seq.len {
             0 => Ok(res),
             remaining => Err(DecodeError::RequireLength {
                 name,
-                expect,
-                value: expect - remaining,
+                expect: value - remaining,
+                value,
             }),
         }
     }
@@ -176,14 +176,14 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     {
         let mut de = self.try_step()?;
         let mut map = Accessor::map(&mut de)?;
-        let expect = map.len;
+        let value = map.len;
         let res = visitor.visit_map(&mut map)?;
         match map.len {
             0 => Ok(res),
             remaining => Err(DecodeError::RequireLength {
                 name,
-                expect,
-                value: expect - remaining,
+                expect: value - remaining,
+                value,
             }),
         }
     }

@@ -101,7 +101,8 @@ pub enum DecodeError<E> {
         /// Type name (e.g. "bytes", "str").
         name: &'static str,
     },
-    /// Length wasn't large enough.
+    /// Length wasn't large enough. This error comes after attempting to consume the entirety of a
+    /// item with a known length and failing to do so.
     RequireLength {
         /// Type name.
         name: &'static str,

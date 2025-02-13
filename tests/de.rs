@@ -386,7 +386,9 @@ fn test_default_values() {
         // [202,"nup",false] has too many elements so it errors with RequireLength
         TestCase {
             hex: "8318ca636e7570f4",
-            expected: Expected::Err(|err| matches!(err, DecodeError::TrailingData)),
+            expected: Expected::Err(
+                |err| matches!(err, DecodeError::RequireLength{ name, expect, value} if *name == "TupleWithDefaultsStruct" && *expect == 2 && *value == 3),
+            ),
         },
     ];
 
@@ -418,10 +420,9 @@ fn test_default_values() {
         // [505,[202,"nup",false],606] has too many elements on inner so it errors with RequireLength
         TestCase {
             hex: "831901f98318ca636e7570f419025e",
-            expected: Expected::Err(|err| {
-                // false is 0xf4, out of place, and we expect to roll into an int (with major 0)
-                matches!(err, DecodeError::Mismatch { expect_major, byte } if *expect_major == 0 && *byte == 0xf4)
-            }),
+            expected: Expected::Err(
+                |err| matches!(err, DecodeError::RequireLength{ name, expect, value} if *name == "TupleWithDefaultsStruct" && *expect == 2 && *value == 3),
+            ),
         },
         // [505,[]]
         TestCase {
