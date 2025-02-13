@@ -143,6 +143,50 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
             Err(error) => Err(error),
         }
     }
+
+    fn visit_seq<V>(
+        &mut self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, DecodeError<R::Error>>
+    where
+        V: Visitor<'de>,
+    {
+        let mut de = self.try_step()?;
+        let mut seq = Accessor::array(&mut de)?;
+        let expect = seq.len;
+        let res = visitor.visit_seq(&mut seq)?;
+        match seq.len {
+            0 => Ok(res),
+            remaining => Err(DecodeError::RequireLength {
+                name,
+                expect,
+                value: expect - remaining,
+            }),
+        }
+    }
+
+    fn visit_map<V>(
+        &mut self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, DecodeError<R::Error>>
+    where
+        V: Visitor<'de>,
+    {
+        let mut de = self.try_step()?;
+        let mut map = Accessor::map(&mut de)?;
+        let expect = map.len;
+        let res = visitor.visit_map(&mut map)?;
+        match map.len {
+            0 => Ok(res),
+            remaining => Err(DecodeError::RequireLength {
+                name,
+                expect,
+                value: expect - remaining,
+            }),
+        }
+    }
 }
 
 macro_rules! deserialize_type {
@@ -343,32 +387,28 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step()?;
-        let seq = Accessor::array(&mut de)?;
-        visitor.visit_seq(seq)
+        self.visit_seq("array", visitor)
     }
 
     #[inline]
-    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step()?;
-        let seq = Accessor::tuple(&mut de, len)?;
-        visitor.visit_seq(seq)
+        self.visit_seq("tuple", visitor)
     }
 
     #[inline]
     fn deserialize_tuple_struct<V>(
         self,
-        _name: &'static str,
-        len: usize,
+        name: &'static str,
+        _len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        self.deserialize_tuple(len, visitor)
+        self.visit_seq(name, visitor)
     }
 
     #[inline]
@@ -376,22 +416,20 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step()?;
-        let map = Accessor::map(&mut de)?;
-        visitor.visit_map(map)
+        self.visit_map("map", visitor)
     }
 
     #[inline]
     fn deserialize_struct<V>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        self.deserialize_map(visitor)
+        self.visit_map(name, visitor)
     }
 
     #[inline]
@@ -439,7 +477,7 @@ struct Accessor<'a, R> {
 
 impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     #[inline]
-    pub fn array(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
+    fn array(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
         let array_start = dec::ArrayStart::decode(&mut de.reader)?;
         array_start.0.map_or_else(
             || Err(DecodeError::IndefiniteSize),
@@ -448,20 +486,7 @@ impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     }
 
     #[inline]
-    pub fn tuple(
-        de: &'a mut Deserializer<R>,
-        _exp_len: usize,
-    ) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
-        let array_start = dec::ArrayStart::decode(&mut de.reader)?;
-        if let Some(len) = array_start.0 {
-            Ok(Accessor { de, len })
-        } else {
-            Err(DecodeError::IndefiniteSize)
-        }
-    }
-
-    #[inline]
-    pub fn map(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
+    fn map(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
         let map_start = dec::MapStart::decode(&mut de.reader)?;
         map_start.0.map_or_else(
             || Err(DecodeError::IndefiniteSize),
