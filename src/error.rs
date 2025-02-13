@@ -67,7 +67,7 @@ impl<E: fmt::Debug> From<cbor4ii::EncodeError<E>> for EncodeError<E> {
 }
 
 /// A decoding error.
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum DecodeError<E> {
     /// Custom error message.
     Msg(String),

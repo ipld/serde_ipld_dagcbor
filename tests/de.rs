@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 
 use ipld_core::ipld::Ipld;
+use serde::{Deserialize, Serialize};
 use serde_ipld_dagcbor::{de, to_vec, DecodeError};
 use serde_tuple::{Deserialize_tuple, Serialize_tuple};
+use std::convert::Infallible;
 
 #[test]
 fn test_string1() {
@@ -316,8 +318,6 @@ fn error_on_undefined() {
     ));
 }
 
-use std::convert::Infallible;
-
 // Test for default values inside tuple structs
 #[derive(Debug, PartialEq, Deserialize_tuple, Serialize_tuple, Default, Clone)]
 struct TupleWithDefaultsStruct {
@@ -343,6 +343,38 @@ struct TupleOuterDefaultableStruct {
     boop: u64,
     #[serde(default)]
     inner: TupleWithDefaultsStruct,
+}
+
+// Test for tuple structs with overflow where the types are the same so the overflow could
+// spill into the next field of the outer struct
+#[derive(Debug, PartialEq, Deserialize_tuple, Serialize_tuple, Clone)]
+struct TupleIntInner {
+    a: u32,
+    b: u32,
+}
+
+#[derive(Debug, PartialEq, Deserialize_tuple, Serialize_tuple, Clone)]
+struct TupleIntOuterWithOverflow {
+    inner: TupleIntInner,
+    #[serde(default)]
+    c: u32,
+}
+
+// Test for tuple structs with overflow where the types are the same so the overflow could
+// spill into the next field of the outer struct
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+struct MapIntInner {
+    a: u32,
+    b: u32,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+struct MapIntOuterWithOverflow {
+    inner: MapIntInner,
+    #[serde(default)]
+    c: u32,
 }
 
 // The expected result is either an Ok value or an error check closure.
@@ -483,9 +515,83 @@ fn test_default_values() {
         },
     ];
 
+    let tuple_overflow_cases = [
+        // [[1,2],3] -> expected layout
+        TestCase {
+            hex: "8282010203",
+            expected: Expected::Ok(TupleIntOuterWithOverflow {
+                inner: TupleIntInner { a: 1, b: 2 },
+                c: 3,
+            }),
+        },
+        // [[1],2] -> error because inner has too few elements
+        TestCase {
+            hex: "82820102",
+            expected: Expected::Err(|err| matches!(err, DecodeError::Eof)),
+        },
+        // [[1,2,3],4] -> error because inner has too many elements
+        TestCase {
+            hex: "828301020304",
+            expected: Expected::Err(
+                |err| matches!(err, DecodeError::RequireLength{ name, expect, value} if *name == "TupleIntInner" && *expect == 2 && *value == 3),
+            ),
+        },
+        // [[1,2]] + 3 -> error because there's a trailing element
+        TestCase {
+            hex: "8182010203",
+            expected: Expected::Err(|err| matches!(err, DecodeError::TrailingData)),
+        },
+        // [[1,2,3]] -> error because outer has too few elements
+        TestCase {
+            hex: "8183010203",
+            expected: Expected::Err(
+                |err| matches!(err, DecodeError::RequireLength{ name, expect, value} if *name == "TupleIntInner" && *expect == 2 && *value == 3),
+            ),
+        },
+    ];
+
+    let map_overflow_cases = [
+        // {"inner":{"a":1,"b":2},"c":3} -> expected layout
+        TestCase {
+            hex: "a261630365696e6e6572a2616101616202",
+            expected: Expected::Ok(MapIntOuterWithOverflow {
+                inner: MapIntInner { a: 1, b: 2 },
+                c: 3,
+            }),
+        },
+        // {"inner":{"a":1},"c":3} -> error because inner has too few elements
+        TestCase {
+            hex: "a261630365696e6e6572a1616101",
+            expected: Expected::Err(
+                |err| matches!(err, DecodeError::Msg(ref m) if m == "missing field `b`"),
+            ),
+        },
+        // {"inner":{"a":1,"b":2,"c":3},"c":4} -> error because inner has too many elements
+        TestCase {
+            hex: "a261630465696e6e6572a3616101616202616303",
+            expected: Expected::Err(
+                |err| matches!(err, DecodeError::Msg(ref m) if m == "unknown field `c`, expected `a` or `b`"),
+            ),
+        },
+        // {"inner":{"a":1,"b":2}} + "c":3 -> error because there's a trailing element
+        TestCase {
+            hex: "a165696e6e6572a2616101616202616303",
+            expected: Expected::Err(|err| matches!(err, DecodeError::TrailingData)),
+        },
+        // {"inner":{"a":1,"b":2,"c":3}} -> error because outer has too few elements
+        TestCase {
+            hex: "a165696e6e6572a3616101616202616303",
+            expected: Expected::Err(
+                |err| matches!(err, DecodeError::Msg(ref m) if m == "unknown field `c`, expected `a` or `b`"),
+            ),
+        },
+    ];
+
     check_cases(&basic_cases);
     check_cases(&outer_cases);
     check_cases(&outer_defaultable_cases);
+    check_cases(&tuple_overflow_cases);
+    check_cases(&map_overflow_cases);
 
     fn check_cases<T>(test_cases: &[TestCase<T>])
     where
@@ -495,18 +601,25 @@ fn test_default_values() {
             let input = const_hex::decode(case.hex).unwrap();
             let result = from_slice::<T>(&input);
             match case.expected {
-                Expected::Ok(ref expected_val) => {
-                    assert_eq!(result.unwrap(), *expected_val, "for input {}", case.hex);
-                }
-                Expected::Err(check) => {
-                    let err = result.unwrap_err();
-                    assert!(
+                Expected::Ok(ref expected_val) => match result {
+                    Ok(val) => assert_eq!(val, *expected_val, "for input {}", case.hex),
+                    Err(err) => panic!(
+                        "for input {} expected success with {:?} but got error: {:?}",
+                        case.hex, expected_val, err
+                    ),
+                },
+                Expected::Err(check) => match result {
+                    Ok(val) => panic!(
+                        "for input {} expected an error but got success with value: {:?}",
+                        case.hex, val
+                    ),
+                    Err(err) => assert!(
                         check(&err),
                         "for input {} got unexpected error: {:?}",
                         case.hex,
                         err
-                    );
-                }
+                    ),
+                },
             }
         }
     }
