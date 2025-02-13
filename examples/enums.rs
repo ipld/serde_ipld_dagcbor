@@ -6,7 +6,6 @@ use std::convert::{TryFrom, TryInto};
 use ipld_core::{cid::Cid, ipld::Ipld};
 use serde::{de, Deserialize};
 use serde_bytes::ByteBuf;
-use serde_derive::Deserialize;
 use serde_ipld_dagcbor::from_slice;
 
 /// The CID `bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy` encoded as CBOR

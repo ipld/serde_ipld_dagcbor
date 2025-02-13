@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use ipld_core::ipld::Ipld;
 use serde_derive::{Deserialize, Serialize};
+use serde_tuple::{Deserialize_tuple, Serialize_tuple};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 struct TupleStruct(String, i32, u64);
@@ -82,4 +83,53 @@ fn unit_struct_not_supported() {
 struct SmallStruct {
     spam: u32,
     eggs: u32,
+}
+
+#[derive(Debug, PartialEq, Clone, Deserialize_tuple, Serialize_tuple)]
+#[serde(deny_unknown_fields)]
+struct StructWithTupleSerialization {
+    spam: u32,
+    eggs: u32,
+    #[serde(default)]
+    ham: String,
+}
+
+#[test]
+fn struct_with_tuple_representation() {
+    let st = StructWithTupleSerialization {
+        spam: 42,
+        eggs: 23,
+        ham: "smoked".to_string(),
+    };
+
+    let ipld = ipld_core::serde::to_ipld(st.clone()).unwrap();
+    println!("{:?}", ipld);
+
+    let data_ser = serde_ipld_dagcbor::to_vec(&ipld).unwrap();
+    println!("{:?}", data_ser);
+    let data_de_ipld: Ipld = serde_ipld_dagcbor::from_slice(&data_ser).unwrap();
+
+    let strt: StructWithTupleSerialization = ipld_core::serde::from_ipld(data_de_ipld).unwrap();
+    assert_eq!(st, strt);
+
+    let data_ser = vec![0x82, 0x17, 0x18, 0x2a]; // two element array [23,42]
+    let data_de_ipld: Ipld = serde_ipld_dagcbor::from_slice(&data_ser).unwrap();
+    let strt: StructWithTupleSerialization = ipld_core::serde::from_ipld(data_de_ipld).unwrap();
+    assert_eq!(
+        strt,
+        StructWithTupleSerialization {
+            spam: 23,
+            eggs: 42,
+            ham: "".to_string(),
+        }
+    );
+
+    let data_ser = vec![0x84, 0x17, 0x18, 0x2a, 0x64, 0xf0, 0x9f, 0x91, 0x8c, 0xf4]; // [23,42,"👌",false]
+    let data_de_ipld: Ipld = serde_ipld_dagcbor::from_slice(&data_ser).unwrap();
+    let err =
+        ipld_core::serde::from_ipld::<StructWithTupleSerialization>(data_de_ipld).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "serde error: The type failed to consume the entire sequence: 1 items remaining"
+    );
 }

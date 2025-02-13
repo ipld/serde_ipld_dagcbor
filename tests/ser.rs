@@ -48,19 +48,19 @@ fn test_f32() {
 
 #[test]
 fn test_infinity() {
-    let vec = to_vec(&::std::f64::INFINITY);
+    let vec = to_vec(&f64::INFINITY);
     assert!(vec.is_err(), "Only finite numbers are supported.");
 }
 
 #[test]
 fn test_neg_infinity() {
-    let vec = to_vec(&::std::f64::NEG_INFINITY);
+    let vec = to_vec(&f64::NEG_INFINITY);
     assert!(vec.is_err(), "Only finite numbers are supported.");
 }
 
 #[test]
 fn test_nan() {
-    let vec = to_vec(&::std::f32::NAN);
+    let vec = to_vec(&f32::NAN);
     assert!(vec.is_err(), "Only finite numbers are supported.");
 }
 
@@ -79,7 +79,7 @@ fn test_integer() {
     let vec = to_vec(&-23567997).unwrap();
     assert_eq!(vec, b"\x3a\x01\x67\x9e\x7c");
     // u64
-    let vec = to_vec(&::std::u64::MAX).unwrap();
+    let vec = to_vec(&u64::MAX).unwrap();
     assert_eq!(vec, b"\x1b\xff\xff\xff\xff\xff\xff\xff\xff");
     // u128 within u64 range
     let vec = to_vec(&(u64::MAX as u128)).unwrap();
