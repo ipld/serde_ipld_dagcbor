@@ -1,8 +1,8 @@
 Serde IPLD DAG-CBOR
 ===================
 
-[![Crates.io](https://img.shields.io/crates/v/serde_ipld_dag_cbor.svg)](https://crates.io/crates/serde_ipld_dagcbor)
-[![Documentation](https://docs.rs/serde_ipld_dag_cbor/badge.svg)](https://docs.rs/serde_ipld_dag_cbor)
+[![Crates.io](https://img.shields.io/crates/v/serde_ipld_dagcbor.svg)](https://crates.io/crates/serde_ipld_dagcbor)
+[![Documentation](https://docs.rs/serde_ipld_dagcbor/badge.svg)](https://docs.rs/serde_ipld_dag_cbor)
 
 This is a [Serde] implementation for [DAG-CBOR]. It can be use in conjunction with [ipld-core].
 
