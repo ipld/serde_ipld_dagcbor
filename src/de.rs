@@ -82,6 +82,40 @@ where
     Ok(value)
 }
 
+/// Decodes a single value from CBOR data in a reader. If there are multiple
+/// concatenated values in the reader, this function will succeed. On success,
+/// it returns the decoded value and the reader containing the remaining data.
+///
+/// # Examples
+///
+/// Deserialize a `String`
+///
+/// ```
+/// # use serde_ipld_dagcbor::de;
+/// let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72];
+/// let (value, reader): (String, &[u8]) = de::from_reader_once(&v[..]).unwrap();
+/// assert_eq!(value, "foobar");
+/// assert!(reader.is_empty());
+///
+/// let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x7A];
+/// let (value_1, v): (String, &[u8]) = de::from_reader_once(v).unwrap();
+/// let (value_2, v): (String, &[u8]) = de::from_reader_once(v).unwrap();
+/// assert_eq!(value_1, "foobar");
+/// assert_eq!(value_2, "baz");
+/// assert!(v.is_empty());
+/// ```
+#[cfg(feature = "std")]
+pub fn from_reader_once<T, R>(reader: R) -> Result<(T, R), DecodeError<std::io::Error>>
+where
+    T: de::DeserializeOwned,
+    R: std::io::BufRead,
+{
+    let reader = IoReader::new(reader);
+    let mut deserializer = Deserializer::from_reader(reader);
+    let value = serde::Deserialize::deserialize(&mut deserializer)?;
+    Ok((value, deserializer.reader.into_inner()))
+}
+
 /// A Serde `Deserialize`r of DAG-CBOR data.
 #[derive(Debug)]
 pub struct Deserializer<R> {
