@@ -84,7 +84,8 @@ where
 
 /// Decodes a single value from CBOR data in a reader. If there are multiple
 /// concatenated values in the reader, this function will succeed. On success,
-/// it returns the decoded value and the reader containing the remaining data.
+/// it returns the decoded value. The reader will be left with all trailing
+/// data.
 ///
 /// # Examples
 ///
@@ -93,19 +94,21 @@ where
 /// ```
 /// # use serde_ipld_dagcbor::de;
 /// let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72];
-/// let (value, reader): (String, &[u8]) = de::from_reader_once(&v[..]).unwrap();
+/// let mut reader = std::io::Cursor::new(v);
+/// let value: String = de::from_reader_once(&mut reader).unwrap();
 /// assert_eq!(value, "foobar");
-/// assert!(reader.is_empty());
+/// assert_eq!(v.len(), reader.position() as usize);
 ///
 /// let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x7A];
-/// let (value_1, v): (String, &[u8]) = de::from_reader_once(v).unwrap();
-/// let (value_2, v): (String, &[u8]) = de::from_reader_once(v).unwrap();
+/// let mut reader = std::io::Cursor::new(v);
+/// let value_1: String = de::from_reader_once(&mut reader).unwrap();
+/// let value_2: String = de::from_reader_once(&mut reader).unwrap();
 /// assert_eq!(value_1, "foobar");
 /// assert_eq!(value_2, "baz");
-/// assert!(v.is_empty());
+/// assert_eq!(v.len(), reader.position() as usize);
 /// ```
 #[cfg(feature = "std")]
-pub fn from_reader_once<T, R>(reader: R) -> Result<(T, R), DecodeError<std::io::Error>>
+pub fn from_reader_once<T, R>(reader: R) -> Result<T, DecodeError<std::io::Error>>
 where
     T: de::DeserializeOwned,
     R: std::io::BufRead,
@@ -113,7 +116,7 @@ where
     let reader = IoReader::new(reader);
     let mut deserializer = Deserializer::from_reader(reader);
     let value = serde::Deserialize::deserialize(&mut deserializer)?;
-    Ok((value, deserializer.reader.into_inner()))
+    Ok(value)
 }
 
 /// A Serde `Deserialize`r of DAG-CBOR data.
