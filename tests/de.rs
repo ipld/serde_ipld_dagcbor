@@ -253,6 +253,19 @@ fn test_object_determinism_roundtrip() {
     }
 }
 
+#[cfg(feature = "std")]
+#[test]
+fn test_from_reader_once() {
+    let v: &[u8] = &[
+        0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x7A,
+    ];
+    let (value_1, v): (String, _) = de::from_reader_once(v).unwrap();
+    assert_eq!(value_1, "foobar");
+    let (value_2, v): (String, _) = de::from_reader_once(v).unwrap();
+    assert_eq!(value_2, "baz");
+    assert!(v.is_empty());
+}
+
 #[test]
 fn crash() {
     let file = include_bytes!("crash.cbor");
