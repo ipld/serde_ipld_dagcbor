@@ -259,11 +259,12 @@ fn test_from_reader_once() {
     let v: &[u8] = &[
         0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x7A,
     ];
-    let (value_1, v): (String, _) = de::from_reader_once(v).unwrap();
+    let mut reader = std::io::Cursor::new(v);
+    let value_1: String = de::from_reader_once(&mut reader).unwrap();
     assert_eq!(value_1, "foobar");
-    let (value_2, v): (String, _) = de::from_reader_once(v).unwrap();
+    let value_2: String = de::from_reader_once(&mut reader).unwrap();
     assert_eq!(value_2, "baz");
-    assert!(v.is_empty());
+    assert_eq!(v.len(), reader.position() as usize);
 }
 
 #[test]
