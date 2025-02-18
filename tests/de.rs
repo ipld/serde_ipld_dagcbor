@@ -255,16 +255,33 @@ fn test_object_determinism_roundtrip() {
 
 #[cfg(feature = "std")]
 #[test]
-fn test_from_reader_once() {
+fn test_stream_deserializer() {
     let v: &[u8] = &[
         0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x7A,
     ];
-    let mut reader = std::io::Cursor::new(v);
-    let value_1: String = de::from_reader_once(&mut reader).unwrap();
+    let reader = std::io::Cursor::new(v);
+    let reader = cbor4ii::core::utils::IoReader::new(reader);
+    let mut i = de::Deserializer::from_reader(reader).into_iter();
+    let value_1: String = i.next().unwrap().unwrap();
     assert_eq!(value_1, "foobar");
-    let value_2: String = de::from_reader_once(&mut reader).unwrap();
+    let value_2: String = i.next().unwrap().unwrap();
     assert_eq!(value_2, "baz");
-    assert_eq!(v.len(), reader.position() as usize);
+    assert!(i.next().is_none());
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_stream_deserializer_trailing_data() {
+    // one byte missing on the end
+    let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61];
+    let reader = std::io::Cursor::new(v);
+    let reader = cbor4ii::core::utils::IoReader::new(reader);
+    let mut i = de::Deserializer::from_reader(reader).into_iter();
+    let value_1: String = i.next().unwrap().unwrap();
+    assert_eq!(value_1, "foobar");
+
+    // we should get back an Eof error
+    assert!(matches!(i.next(), Some(Err(DecodeError::Eof))));
 }
 
 #[test]

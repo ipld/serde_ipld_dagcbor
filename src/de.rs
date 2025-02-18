@@ -2,6 +2,8 @@
 #[cfg(not(feature = "std"))]
 use alloc::borrow::Cow;
 use core::convert::{Infallible, TryFrom};
+use core::marker::PhantomData;
+use serde::Deserialize;
 #[cfg(feature = "std")]
 use std::borrow::Cow;
 
@@ -82,41 +84,38 @@ where
     Ok(value)
 }
 
-/// Decodes a single value from CBOR data in a reader. If there are multiple
-/// concatenated values in the reader, this function will succeed. On success,
-/// it returns the decoded value. The reader will be left with all trailing
-/// data.
+/// Create an iterator over the CBOR values in the reader.
 ///
 /// # Examples
 ///
-/// Deserialize a `String`
+/// Deserialize several `String` values
 ///
 /// ```
 /// # use serde_ipld_dagcbor::de;
 /// let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72];
 /// let mut reader = std::io::Cursor::new(v);
-/// let value: String = de::from_reader_once(&mut reader).unwrap();
+/// let mut iter = de::iter_from_reader::<String, _>(&mut reader);
+/// let value: String = iter.next().unwrap().unwrap();
 /// assert_eq!(value, "foobar");
-/// assert_eq!(v.len(), reader.position() as usize);
+/// assert!(iter.next().is_none());
 ///
 /// let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x7A];
 /// let mut reader = std::io::Cursor::new(v);
-/// let value_1: String = de::from_reader_once(&mut reader).unwrap();
-/// let value_2: String = de::from_reader_once(&mut reader).unwrap();
+/// let mut iter = de::iter_from_reader::<String, _>(&mut reader);
+/// let value_1: String = iter.next().unwrap().unwrap();
+/// let value_2: String = iter.next().unwrap().unwrap();
 /// assert_eq!(value_1, "foobar");
 /// assert_eq!(value_2, "baz");
-/// assert_eq!(v.len(), reader.position() as usize);
+/// assert!(iter.next().is_none());
 /// ```
 #[cfg(feature = "std")]
-pub fn from_reader_once<T, R>(reader: R) -> Result<T, DecodeError<std::io::Error>>
+pub fn iter_from_reader<T, R>(reader: R) -> StreamDeserializer<'static, IoReader<R>, T>
 where
     T: de::DeserializeOwned,
     R: std::io::BufRead,
 {
     let reader = IoReader::new(reader);
-    let mut deserializer = Deserializer::from_reader(reader);
-    let value = serde::Deserialize::deserialize(&mut deserializer)?;
-    Ok(value)
+    Deserializer::from_reader(reader).into_iter()
 }
 
 /// A Serde `Deserialize`r of DAG-CBOR data.
@@ -129,6 +128,16 @@ impl<R> Deserializer<R> {
     /// Constructs a `Deserializer` which reads from a `Read`er.
     pub fn from_reader(reader: R) -> Deserializer<R> {
         Deserializer { reader }
+    }
+}
+
+impl<'de, R: dec::Read<'de>> Deserializer<R> {
+    /// Create an iterator over all the CBOR values in the iterator
+    #[allow(clippy::should_implement_trait)]
+    pub fn into_iter<T: Deserialize<'de>>(self) -> StreamDeserializer<'de, R, T> {
+        // This cannot be an implementation of std::iter::IntoIterator because
+        // we need the caller to choose what T is.
+        StreamDeserializer::new(self)
     }
 }
 
@@ -504,6 +513,49 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     #[inline]
     fn is_human_readable(&self) -> bool {
         false
+    }
+}
+
+/// An iterator over all the CBOR values in the iterator.
+pub struct StreamDeserializer<'de, R, T> {
+    de: Deserializer<R>,
+    output: PhantomData<T>,
+    lifetime: PhantomData<&'de ()>,
+}
+
+impl<'de, R, T> StreamDeserializer<'de, R, T>
+where
+    R: dec::Read<'de>,
+    T: de::Deserialize<'de>,
+{
+    /// Create a new streaming deserializer.
+    pub fn new(de: Deserializer<R>) -> Self {
+        Self {
+            de,
+            output: PhantomData,
+            lifetime: PhantomData,
+        }
+    }
+}
+
+impl<'de, R, T> Iterator for StreamDeserializer<'de, R, T>
+where
+    R: dec::Read<'de>,
+    T: de::Deserialize<'de>,
+{
+    type Item = Result<T, DecodeError<R::Error>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Ok(()) = self.de.end() {
+            return None;
+        }
+
+        let result = serde::Deserialize::deserialize(&mut self.de);
+
+        match result {
+            Ok(value) => Some(Ok(value)),
+            Err(err) => Some(Err(err)),
+        }
     }
 }
 
