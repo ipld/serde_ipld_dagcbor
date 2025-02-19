@@ -255,6 +255,18 @@ fn test_object_determinism_roundtrip() {
 
 #[cfg(feature = "std")]
 #[test]
+fn test_from_reader_once() {
+    let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x0a];
+    let mut reader = std::io::Cursor::new(v);
+    let value_1: String = de::from_reader_once(&mut reader).unwrap();
+    assert_eq!(value_1, "foobar");
+    let value_2: i32 = de::from_reader_once(&mut reader).unwrap();
+    assert_eq!(value_2, 10);
+    assert_eq!(v.len(), reader.position() as usize);
+}
+
+#[cfg(feature = "std")]
+#[test]
 fn test_stream_deserializer() {
     let v: &[u8] = &[
         0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x7A,
