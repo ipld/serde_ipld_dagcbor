@@ -283,6 +283,24 @@ fn test_stream_deserializer() {
 
 #[cfg(feature = "std")]
 #[test]
+fn test_stream_deserializer_marker_traits() {
+    use std::rc::Rc;
+
+    fn is_send<T: Send>(_: &T) {}
+
+    let v: &[u8] = &[
+        0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x7A,
+    ];
+    let reader = std::io::Cursor::new(v);
+    let reader = cbor4ii::core::utils::IoReader::new(reader);
+    let mut i = de::Deserializer::from_reader(reader).into_iter();
+    is_send(&i);
+    let value_1: Rc<String> = i.next().unwrap().unwrap();
+    assert_eq!(value_1.as_str(), "foobar");
+}
+
+#[cfg(feature = "std")]
+#[test]
 fn test_stream_deserializer_trailing_data() {
     // one byte missing on the end
     let v: &[u8] = &[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61];

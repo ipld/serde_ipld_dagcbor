@@ -558,7 +558,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
 /// An iterator over all the CBOR values in the iterator.
 pub struct StreamDeserializer<'de, R, T> {
     de: Deserializer<R>,
-    output: PhantomData<T>,
+    output: PhantomData<fn() -> T>,
     lifetime: PhantomData<&'de ()>,
 }
 
