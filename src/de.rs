@@ -562,11 +562,7 @@ pub struct StreamDeserializer<'de, R, T> {
     lifetime: PhantomData<&'de ()>,
 }
 
-impl<'de, R, T> StreamDeserializer<'de, R, T>
-where
-    R: dec::Read<'de>,
-    T: de::Deserialize<'de>,
-{
+impl<R, T> StreamDeserializer<'_, R, T> {
     /// Create a new streaming deserializer.
     pub fn new(de: Deserializer<R>) -> Self {
         Self {
