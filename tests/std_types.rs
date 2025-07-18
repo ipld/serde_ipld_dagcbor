@@ -1,6 +1,5 @@
+use serde_cbor_core::{from_slice, to_vec};
 use serde_derive::{Deserialize, Serialize};
-
-use serde_ipld_dagcbor::{from_slice, to_vec};
 
 fn to_binary(s: &'static str) -> Vec<u8> {
     assert!(s.len() % 2 == 0);
@@ -27,7 +26,7 @@ macro_rules! testcase {
 
             #[cfg(feature = "std")]
             {
-                let parsed: f64 = serde_ipld_dagcbor::from_reader(&mut &serialized[..]).unwrap();
+                let parsed: f64 = serde_cbor_core::from_reader(&mut &serialized[..]).unwrap();
                 if !expr.is_nan() {
                     assert_eq!(expr, parsed);
                 } else {

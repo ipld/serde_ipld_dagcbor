@@ -1,161 +1,143 @@
-use std::collections::BTreeMap;
-
-use ipld_core::ipld::Ipld;
+use cbor4ii::core::Value;
 use serde::{Deserialize, Serialize};
-use serde_ipld_dagcbor::{de, to_vec, DecodeError};
+use serde_cbor_core::{de, to_vec, DecodeError};
 use serde_tuple::{Deserialize_tuple, Serialize_tuple};
+use std::collections::BTreeMap;
 use std::convert::Infallible;
 
 #[test]
 fn test_string1() {
-    let ipld: Result<Ipld, _> = de::from_slice(&[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72]);
-    assert_eq!(ipld.unwrap(), Ipld::String("foobar".to_string()));
+    let string: String = de::from_slice(&[0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72]).unwrap();
+    assert_eq!(string, "foobar".to_string());
 }
 
 #[test]
 fn test_string2() {
-    let ipld: Result<Ipld, _> = de::from_slice(&[
+    let string: String = de::from_slice(&[
         0x71, 0x49, 0x20, 0x6d, 0x65, 0x74, 0x20, 0x61, 0x20, 0x74, 0x72, 0x61, 0x76, 0x65, 0x6c,
         0x6c, 0x65, 0x72,
-    ]);
-    assert_eq!(ipld.unwrap(), Ipld::String("I met a traveller".to_string()));
+    ])
+    .unwrap();
+    assert_eq!(string, "I met a traveller".to_string());
 }
 
 #[test]
 fn test_string3() {
     let slice = b"\x78\x2fI met a traveller from an antique land who said";
-    let ipld: Result<Ipld, _> = de::from_slice(slice);
+    let string: String = de::from_slice(slice).unwrap();
     assert_eq!(
-        ipld.unwrap(),
-        Ipld::String("I met a traveller from an antique land who said".to_string())
+        string,
+        "I met a traveller from an antique land who said".to_string()
     );
 }
 
 #[test]
 fn test_byte_string() {
-    let ipld: Result<Ipld, _> = de::from_slice(&[0x46, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72]);
-    assert_eq!(ipld.unwrap(), Ipld::Bytes(b"foobar".to_vec()));
+    let bytes = b"foobar".to_vec();
+    let bytes2: Vec<u8> = de::from_slice(&bytes).unwrap();
+    assert_eq!(bytes2, bytes);
 }
 
 #[test]
 fn test_numbers1() {
-    let ipld: Result<Ipld, _> = de::from_slice(&[0x00]);
-    assert_eq!(ipld.unwrap(), Ipld::Integer(0));
+    let value: u32 = de::from_slice(&[0x00]).unwrap();
+    assert_eq!(value, 0);
 }
 
 #[test]
 fn test_numbers2() {
-    let ipld: Result<Ipld, _> = de::from_slice(&[0x1a, 0x00, 0xbc, 0x61, 0x4e]);
-    assert_eq!(ipld.unwrap(), Ipld::Integer(12345678));
+    let value: u32 = de::from_slice(&[0x1a, 0x00, 0xbc, 0x61, 0x4e]).unwrap();
+    assert_eq!(value, 12345678);
 }
 
 #[test]
 fn test_numbers3() {
-    let ipld: Result<Ipld, _> = de::from_slice(&[0x39, 0x07, 0xde]);
-    assert_eq!(ipld.unwrap(), Ipld::Integer(-2015));
+    let value: i32 = de::from_slice(&[0x39, 0x07, 0xde]).unwrap();
+    assert_eq!(value, -2015);
 }
 
 #[test]
 fn test_numbers_large_negative() {
-    let ipld: Result<Ipld, _> =
-        de::from_slice(&[0x3b, 0xa5, 0xf7, 0x02, 0xb3, 0xa5, 0xf7, 0x02, 0xb3]);
+    let value: i128 =
+        de::from_slice(&[0x3b, 0xa5, 0xf7, 0x02, 0xb3, 0xa5, 0xf7, 0x02, 0xb3]).unwrap();
     let expected: i128 = -11959030306112471732;
     assert!(expected < i128::from(i64::MIN));
-    assert_eq!(ipld.unwrap(), Ipld::Integer(expected));
+    assert_eq!(value, expected);
 }
 
 #[test]
 fn test_bool() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\xf4");
-    assert_eq!(ipld.unwrap(), Ipld::Bool(false));
+    let value: bool = de::from_slice(b"\xf4").unwrap();
+    assert_eq!(value, false);
 }
 
 #[test]
 fn test_trailing_bytes() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\xf4trailing");
-    assert!(matches!(ipld.unwrap_err(), DecodeError::TrailingData));
+    let value: Result<u8, _> = de::from_slice(b"\xf4trailing");
+    assert!(matches!(value.unwrap_err(), DecodeError::TrailingData));
 }
 
 #[test]
 fn test_list1() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\x83\x01\x02\x03");
-    assert_eq!(
-        ipld.unwrap(),
-        Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(2), Ipld::Integer(3)])
-    );
-}
-
-#[test]
-fn test_list2() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\x82\x01\x82\x02\x81\x03");
-    assert_eq!(
-        ipld.unwrap(),
-        Ipld::List(vec![
-            Ipld::Integer(1),
-            Ipld::List(vec![Ipld::Integer(2), Ipld::List(vec![Ipld::Integer(3)])])
-        ])
-    );
+    let value: Vec<u8> = de::from_slice(b"\x83\x01\x02\x03").unwrap();
+    let expected: Vec<u8> = vec![1, 2, 3];
+    assert_eq!(value, expected);
 }
 
 #[test]
 fn test_object() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\xa5aaaAabaBacaCadaDaeaE");
+    let value: BTreeMap<String, String> = de::from_slice(b"\xa5aaaAabaBacaCadaDaeaE").unwrap();
     let mut object = BTreeMap::new();
-    object.insert("a".to_string(), Ipld::String("A".to_string()));
-    object.insert("b".to_string(), Ipld::String("B".to_string()));
-    object.insert("c".to_string(), Ipld::String("C".to_string()));
-    object.insert("d".to_string(), Ipld::String("D".to_string()));
-    object.insert("e".to_string(), Ipld::String("E".to_string()));
-    assert_eq!(ipld.unwrap(), Ipld::Map(object));
+    object.insert("a".to_string(), "A".to_string());
+    object.insert("b".to_string(), "B".to_string());
+    object.insert("c".to_string(), "C".to_string());
+    object.insert("d".to_string(), "D".to_string());
+    object.insert("e".to_string(), "E".to_string());
+    assert_eq!(value, object);
 }
 
 #[test]
 fn test_indefinite_object_error() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\xbfaa\x01ab\x9f\x02\x03\xff\xff");
-    let mut object = BTreeMap::new();
-    object.insert("a".to_string(), Ipld::Integer(1));
-    object.insert(
-        "b".to_string(),
-        Ipld::List(vec![Ipld::Integer(2), Ipld::Integer(3)]),
-    );
-    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
+    let value: Result<BTreeMap<String, u8>, _> =
+        de::from_slice(b"\xbfaa\x01ab\x9f\x02\x03\xff\xff");
+    assert!(matches!(value.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
 fn test_indefinite_list_error() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\x9f\x01\x02\x03\xff");
-    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
+    let value: Result<Vec<u8>, _> = de::from_slice(b"\x9f\x01\x02\x03\xff");
+    assert!(matches!(value.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
 fn test_indefinite_string_error() {
-    let ipld: Result<Ipld, _> =
+    let value: Result<String, _> =
         de::from_slice(b"\x7f\x65Mary \x64Had \x62a \x67Little \x60\x64Lamb\xff");
-    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
+    assert!(matches!(value.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
 fn test_indefinite_byte_string_error() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\x5f\x42\x01\x23\x42\x45\x67\xff");
-    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
+    let value: Result<Vec<u8>, _> = de::from_slice(b"\x5f\x42\x01\x23\x42\x45\x67\xff");
+    assert!(matches!(value.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
 fn test_multiple_indefinite_strings_error() {
     let input = b"\x82\x7f\x65Mary \x64Had \x62a \x67Little \x60\x64Lamb\xff\x5f\x42\x01\x23\x42\x45\x67\xff";
-    let ipld: Result<Ipld, _> = de::from_slice(input);
-    assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
+    let value: Result<String, _> = de::from_slice(input);
+    assert!(matches!(value.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
 #[test]
 fn test_float() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\xfa\x47\xc3\x50\x00");
-    assert_eq!(ipld.unwrap(), Ipld::Float(100000.0));
+    let value: f32 = de::from_slice(b"\xfa\x47\xc3\x50\x00").unwrap();
+    assert_eq!(value, 100000.0);
 }
 
 #[test]
 fn test_rejected_tag() {
-    let ipld: Result<Ipld, _> =
+    let ipld: Result<Vec<u8>, _> =
         de::from_slice(&[0xd9, 0xd9, 0xf7, 0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72]);
     assert!(matches!(
         ipld.unwrap_err(),
@@ -169,25 +151,25 @@ fn test_rejected_tag() {
 #[test]
 fn test_crazy_list() {
     let slice = b"\x86\x1b\x00\x00\x00\x1c\xbe\x99\x1d\xc7\x3b\x00\x7a\xcf\x51\xdc\x51\x70\xdb\x3a\x1b\x3a\x06\xdd\xf5\xf6\xfb\x41\x76\x5e\xb1\xf8\x00\x00\x00";
-    let ipld: Vec<Ipld> = de::from_slice(slice).unwrap();
+    let ipld: Vec<Value> = de::from_slice(slice).unwrap();
     assert_eq!(
         ipld,
         vec![
-            Ipld::Integer(123456789959),
-            Ipld::Integer(-34567897654325468),
-            Ipld::Integer(-456787678),
-            Ipld::Bool(true),
-            Ipld::Null,
-            Ipld::Float(23456543.5),
+            Value::Integer(123456789959),
+            Value::Integer(-34567897654325468),
+            Value::Integer(-456787678),
+            Value::Bool(true),
+            Value::Null,
+            Value::Float(23456543.5),
         ]
     );
 }
 
 #[test]
 fn test_nan() {
-    let ipld: Result<f64, _> = de::from_slice(b"\xf9\x7e\x00");
+    let value: Result<f64, _> = de::from_slice(b"\xf9\x7e\x00");
     assert!(matches!(
-        ipld.unwrap_err(),
+        value.unwrap_err(),
         DecodeError::TypeMismatch { .. }
     ));
 }
@@ -197,7 +179,7 @@ fn test_nan() {
 // but it parses to a cbor value.
 fn test_kietaub_file() {
     let file = include_bytes!("kietaub.cbor");
-    let value_result: Result<Ipld, _> = de::from_slice(file);
+    let value_result: Result<Value, _> = de::from_slice(file);
     value_result.unwrap();
 }
 
@@ -236,7 +218,7 @@ fn test_unit() {
 #[test]
 fn test_variable_length_map_error() {
     let slice = b"\xbf\x67\x6d\x65\x73\x73\x61\x67\x65\x64\x70\x6f\x6e\x67\xff";
-    let ipld: Result<Ipld, _> = de::from_slice(slice);
+    let ipld: Result<Value, _> = de::from_slice(slice);
     assert!(matches!(ipld.unwrap_err(), DecodeError::IndefiniteSize));
 }
 
@@ -247,7 +229,7 @@ fn test_object_determinism_roundtrip() {
     // 0.1% chance of not catching failure
     for _ in 0..10 {
         assert_eq!(
-            &to_vec(&de::from_slice::<Ipld>(expected).unwrap()).unwrap(),
+            &to_vec(&de::from_slice::<Value>(expected).unwrap()).unwrap(),
             expected
         );
     }
@@ -317,11 +299,11 @@ fn test_stream_deserializer_trailing_data() {
 #[test]
 fn crash() {
     let file = include_bytes!("crash.cbor");
-    let value_result: Result<Ipld, _> = de::from_slice(file);
+    let value_result: Result<Value, _> = de::from_slice(file);
     assert!(matches!(value_result.unwrap_err(), DecodeError::Eof));
 }
 
-use serde_ipld_dagcbor::de::from_slice;
+use serde_cbor_core::de::from_slice;
 use std::net::{IpAddr, Ipv4Addr};
 #[test]
 fn test_ipaddr_deserialization() {
@@ -338,7 +320,7 @@ fn attempt_stack_overflow() {
     // This causes deep recursion in the decoder and may
     // exhaust the stack and therfore result in a stack overflow.
     let input = vec![0xd1; 1000];
-    serde_ipld_dagcbor::from_slice::<Ipld>(&input).expect_err("recursion limit");
+    serde_cbor_core::from_slice::<Value>(&input).expect_err("recursion limit");
 }
 
 #[test]
@@ -354,14 +336,14 @@ fn truncated_object() {
         &b"\x8D\xE8\xA4\x24\x29"[..],
     ]
     .concat();
-    serde_ipld_dagcbor::from_slice::<Ipld>(&input).expect_err("truncated");
+    serde_cbor_core::from_slice::<Value>(&input).expect_err("truncated");
 }
 
 #[test]
 fn invalid_string() {
     // Non UTF-8 byte sequence, but using major type 3 (text string)
     let input = [0x63, 0xc5, 0x01, 0x02];
-    let result = serde_ipld_dagcbor::from_slice::<Ipld>(&input);
+    let result = serde_cbor_core::from_slice::<Value>(&input);
     assert!(matches!(
         result.unwrap_err(),
         DecodeError::InvalidUtf8 { .. }
@@ -372,7 +354,7 @@ fn invalid_string() {
 fn error_on_undefined() {
     // CBOR smple type `undefined`
     let input = [0xf7];
-    let result = serde_ipld_dagcbor::from_slice::<Ipld>(&input);
+    let result = serde_cbor_core::from_slice::<Value>(&input);
     assert!(matches!(
         result.unwrap_err(),
         DecodeError::Unsupported { .. }

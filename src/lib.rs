@@ -115,10 +115,6 @@
 extern crate alloc;
 
 mod cbor4ii_nonpub;
-// The `Codec` implementation is only available if the `no-cid-as-bytes` feature is disabled, due
-// to the links being extracted with a Serde based approach.
-#[cfg(all(feature = "std", not(feature = "no-cid-as-bytes"), feature = "codec"))]
-pub mod codec;
 pub mod de;
 pub mod error;
 pub mod ser;
@@ -140,6 +136,3 @@ pub use crate::ser::to_vec;
 #[cfg(feature = "std")]
 #[doc(inline)]
 pub use crate::ser::to_writer;
-
-/// The CBOR tag that is used for CIDs.
-const CBOR_TAGS_CID: u64 = 42;

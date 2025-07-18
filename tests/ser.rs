@@ -2,12 +2,12 @@ use std::{collections::BTreeMap, iter};
 
 use serde::de::value::{self, MapDeserializer, SeqDeserializer};
 use serde_bytes::{ByteBuf, Bytes};
-use serde_derive::Serialize;
-use serde_ipld_dagcbor::{
+use serde_cbor_core::{
     from_slice,
     ser::{BufWriter, Serializer},
     to_vec,
 };
+use serde_derive::Serialize;
 
 #[test]
 fn test_string() {
@@ -208,8 +208,8 @@ fn test_struct_canonical() {
     let first = First { a: 1, b: 2 };
     let second = Second { a: 1, b: 2 };
 
-    let first_bytes = serde_ipld_dagcbor::to_vec(&first).unwrap();
-    let second_bytes = serde_ipld_dagcbor::to_vec(&second).unwrap();
+    let first_bytes = serde_cbor_core::to_vec(&first).unwrap();
+    let second_bytes = serde_cbor_core::to_vec(&second).unwrap();
 
     assert_eq!(first_bytes, second_bytes);
     // Do not only make sure that the order is the same, but also that it's correct.
@@ -233,8 +233,8 @@ fn test_struct_variant_canonical() {
     let first = First::Data { a: 1, b: 2, abc: 3 };
     let second = Second::Data { a: 1, b: 2, abc: 3 };
 
-    let first_bytes = serde_ipld_dagcbor::to_vec(&first).unwrap();
-    let second_bytes = serde_ipld_dagcbor::to_vec(&second).unwrap();
+    let first_bytes = serde_cbor_core::to_vec(&first).unwrap();
+    let second_bytes = serde_cbor_core::to_vec(&second).unwrap();
 
     assert_eq!(first_bytes, second_bytes);
     // Do not only make sure that the order is the same, but also that it's correct.

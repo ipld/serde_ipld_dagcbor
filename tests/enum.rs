@@ -1,6 +1,5 @@
+use serde_cbor_core::{from_slice, to_vec, DecodeError};
 use serde_derive::{Deserialize, Serialize};
-
-use serde_ipld_dagcbor::{from_slice, to_vec, DecodeError};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 enum Enum {

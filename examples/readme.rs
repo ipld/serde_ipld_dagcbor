@@ -29,14 +29,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Write Ferris to the given file.
     // Instead of a file you can use any type that implements `io::Write`
     // like a HTTP body, database connection etc.
-    serde_ipld_dagcbor::to_writer(ferris_file, &ferris)?;
+    serde_cbor_core::to_writer(ferris_file, &ferris)?;
 
     let tux_file = File::open("examples/tux.cbor")?;
     let tux_reader = BufReader::new(tux_file);
     // Load Tux from a file.
     // Serde IPLD DAG-CBOR performs roundtrip serialization meaning that
     // the data will not change in any way.
-    let tux: Mascot = serde_ipld_dagcbor::from_reader(tux_reader)?;
+    let tux: Mascot = serde_cbor_core::from_reader(tux_reader)?;
 
     println!("{:?}", tux);
     // prints: Mascot { name: "Tux", species: "penguin", year_of_birth: 1996 }
