@@ -143,3 +143,63 @@ testcase!(
 );
 testcase!(test_i128_a, i128, -1i128, "20");
 testcase!(test_u128, u128, 17, "11");
+
+// f32 round-trip tests
+#[test]
+fn test_f32_roundtrip() {
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct SimpleF32 {
+        value: f32,
+    }
+
+    // Test various f32 values
+    let test_values = vec![
+        0.0f32,
+        -0.0f32,
+        1.0f32,
+        -1.0f32,
+        1.5f32,
+        f32::MIN,
+        f32::MAX,
+        f32::EPSILON,
+        f32::MIN_POSITIVE,
+    ];
+
+    for value in test_values {
+        let original = SimpleF32 { value };
+        let encoded = to_vec(&original).expect("encoding should succeed");
+        let decoded: SimpleF32 = from_slice(&encoded).expect("decoding should succeed");
+        assert_eq!(original.value.to_bits(), decoded.value.to_bits());
+    }
+}
+
+#[test]
+fn test_f32_encoding_is_f64() {
+    // Verify that f32 values are actually encoded as f64 in DAG-CBOR
+    let value = 1.5f32;
+    let encoded = to_vec(&value).expect("encoding should succeed");
+
+    // CBOR marker for f64 is 0xfb
+    assert_eq!(encoded[0], 0xfb);
+    // The encoded value should be 8 bytes (f64) + 1 byte marker = 9 bytes total
+    assert_eq!(encoded.len(), 9);
+}
+
+#[test]
+fn test_accept_f32_cbor_marker_for_compatibility() {
+    // Test that we accept CBOR f32 encoding (0xfa marker) for compatibility,
+    // even though it's not valid in strict DAG-CBOR (please don't take this
+    // test as permission to use f32 encoding in new data!).
+
+    // Manually construct CBOR with f32 encoding
+    // 0xfa = f32 marker, followed by 4 bytes of IEEE 754 single precision
+    let f32_cbor = vec![
+        0xfa, // f32 marker (not valid in strict DAG-CBOR, but we accept it)
+        0x3f, 0xc0, 0x00, 0x00, // 1.5 in IEEE 754 single precision
+    ];
+
+    // Should successfully decode for compatibility
+    let result: Result<f32, _> = from_slice(&f32_cbor);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1.5f32);
+}

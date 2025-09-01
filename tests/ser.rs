@@ -48,12 +48,18 @@ fn test_f32() {
 
 #[test]
 fn test_infinity() {
+    let vec = to_vec(&f32::INFINITY);
+    assert!(vec.is_err(), "Only finite numbers are supported.");
+
     let vec = to_vec(&f64::INFINITY);
     assert!(vec.is_err(), "Only finite numbers are supported.");
 }
 
 #[test]
 fn test_neg_infinity() {
+    let vec = to_vec(&f32::NEG_INFINITY);
+    assert!(vec.is_err(), "Only finite numbers are supported.");
+
     let vec = to_vec(&f64::NEG_INFINITY);
     assert!(vec.is_err(), "Only finite numbers are supported.");
 }
@@ -61,6 +67,9 @@ fn test_neg_infinity() {
 #[test]
 fn test_nan() {
     let vec = to_vec(&f32::NAN);
+    assert!(vec.is_err(), "Only finite numbers are supported.");
+
+    let vec = to_vec(&f64::NAN);
     assert!(vec.is_err(), "Only finite numbers are supported.");
 }
 

@@ -149,7 +149,8 @@ fn test_multiple_indefinite_strings_error() {
 
 #[test]
 fn test_float() {
-    let ipld: Result<Ipld, _> = de::from_slice(b"\xfa\x47\xc3\x50\x00");
+    // 0xfb (f64) followed by 8 bytes of IEEE 754 double precision for 100000.0
+    let ipld: Result<Ipld, _> = de::from_slice(b"\xfb\x40\xf8\x6a\x00\x00\x00\x00\x00");
     assert_eq!(ipld.unwrap(), Ipld::Float(100000.0));
 }
 
