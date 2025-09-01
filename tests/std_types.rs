@@ -203,3 +203,54 @@ fn test_accept_f32_cbor_marker_for_compatibility() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1.5f32);
 }
+
+#[test]
+fn test_f32_strict_precision_rejection() {
+    // Test that f64 values with more precision than f32 can represent are rejected
+    // when deserializing to f32
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct F32Wrapper {
+        value: f32,
+    }
+
+    // Value that loses precision when converted to f32
+    let precise_f64 = 0.1f64;
+    let encoded = to_vec(&precise_f64).expect("encoding should succeed");
+
+    // Try to decode as f32 - should fail due to precision loss
+    let result: Result<f32, _> = from_slice(&encoded);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let error_msg = format!("{}", e);
+        assert!(
+            error_msg.contains("precision"),
+            "Expected precision error, got: {}",
+            error_msg
+        );
+    }
+
+    // Value that is exactly representable in f32 should work
+    let exact_f64 = 1.5f64;
+    let encoded = to_vec(&exact_f64).expect("encoding should succeed");
+    let result: Result<f32, _> = from_slice(&encoded);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1.5f32);
+
+    // Test with struct containing f32
+    let original = F32Wrapper { value: 1.5f32 };
+    let encoded = to_vec(&original).expect("encoding should succeed");
+    let decoded: Result<F32Wrapper, _> = from_slice(&encoded);
+    assert!(decoded.is_ok());
+    assert_eq!(decoded.unwrap(), original);
+
+    // Negative zero should preserve sign bit and work
+    let neg_zero_f64 = -0.0f64;
+    let encoded = to_vec(&neg_zero_f64).expect("encoding should succeed");
+    let result: Result<f32, _> = from_slice(&encoded);
+    assert!(result.is_ok());
+    let decoded_f32 = result.unwrap();
+    assert_eq!(decoded_f32, -0.0f32);
+    // Check that sign bit is preserved
+    assert_eq!(decoded_f32.to_bits(), (-0.0f32).to_bits());
+}

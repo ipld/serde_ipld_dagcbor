@@ -382,11 +382,23 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
             marker::F64 => {
                 // DAG-CBOR always uses f64 encoding, even for f32 values
                 let value = <f64>::decode(&mut self.reader)?;
+
                 let f32_value = value as f32;
 
-                // Check if conversion causes overflow
+                // Check if conversion causes overflow to infinity
                 if !f32_value.is_finite() && value.is_finite() {
+                    // The f64 value is finite but becomes infinite when converted to f32
                     return Err(DecodeError::Msg("Float value out of range for f32".into()));
+                }
+
+                // Check if the f64 value is exactly representable as f32. Reject values that
+                // lose precision in the conversion. If you must decode to f32, then you should
+                // only encode f32 values.
+                if (f32_value as f64).to_bits() != value.to_bits() {
+                    return Err(DecodeError::Msg(
+                        "Float value has more precision than f32 can represent, loss of precision"
+                            .into(),
+                    ));
                 }
 
                 visitor.visit_f32(f32_value)
