@@ -358,9 +358,54 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
         u64,        deserialize_u64,        visit_u64;
         u128,       deserialize_u128,       visit_u128;
 
-        f32,        deserialize_f32,        visit_f32;
+        // f32 deserialize is handled as a special case below
         f64,        deserialize_f64,        visit_f64;
     );
+
+    #[inline]
+    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        // DAG-CBOR strictly requires all floats to be encoded as f64.
+        // When deserializing to f32, we need to handle f64 encoding.
+        // We also accept f32 encoding, although a strict DAG-CBOR
+        // implementation should reject it (please don't write new data
+        // with f32 encoding).
+        let byte = peek_one(&mut self.reader)?;
+        match byte {
+            marker::F32 => {
+                // Note: f32 encoding is not valid in strict DAG-CBOR.
+                let value = <f32>::decode(&mut self.reader)?;
+                visitor.visit_f32(value)
+            }
+            marker::F64 => {
+                // DAG-CBOR always uses f64 encoding, even for f32 values
+                let value = <f64>::decode(&mut self.reader)?;
+
+                let f32_value = value as f32;
+
+                // Check if conversion causes overflow to infinity
+                if !f32_value.is_finite() && value.is_finite() {
+                    // The f64 value is finite but becomes infinite when converted to f32
+                    return Err(DecodeError::Msg("Float value out of range for f32".into()));
+                }
+
+                // Check if the f64 value is exactly representable as f32. Reject values that
+                // lose precision in the conversion. If you must decode to f32, then you should
+                // only encode f32 values.
+                if (f32_value as f64).to_bits() != value.to_bits() {
+                    return Err(DecodeError::Msg(
+                        "Float value has more precision than f32 can represent, loss of precision"
+                            .into(),
+                    ));
+                }
+
+                visitor.visit_f32(f32_value)
+            }
+            _ => Err(DecodeError::TypeMismatch { name: "f32", byte }),
+        }
+    }
 
     #[inline]
     fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
