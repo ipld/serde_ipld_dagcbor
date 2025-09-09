@@ -6,7 +6,7 @@ Serde IPLD DAG-CBOR
 
 This is a [Serde] implementation for [DAG-CBOR]. It can be use in conjunction with [ipld-core].
 
-The underlying library for CBOR encoding/decoding is [cbor4ii] and the Serde implementation is also heavily based on their code.
+The underlying library for CBOR encoding/decoding is [cbor4ii]. Their Serde implementation is used as a basis. A copy of their code was copied into this repo on April 2022 and is used under the MIT/Apache-2.0 license, with permission from [@quininer].
 
 This crate started as a fork of [serde_cbor], thanks everyone involved there.
 
@@ -14,6 +14,7 @@ This crate started as a fork of [serde_cbor], thanks everyone involved there.
 [DAG-CBOR]: https://ipld.io/specs/codecs/dag-cbor/spec/
 [ipld-core]: https://github.com/ipld/rust-ipld-core
 [cbor4ii]: https://github.com/quininer/cbor4ii
+[@quininer]: https://github.com/quininer/
 [serde_cbor]: https://github.com/pyfisch/cbor
 
 
