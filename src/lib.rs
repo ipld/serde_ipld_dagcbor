@@ -141,5 +141,8 @@ pub use crate::ser::to_vec;
 #[doc(inline)]
 pub use crate::ser::to_writer;
 
+/// The multicodec code for DAG-CBOR.
+pub const DAG_CBOR_CODE: u64 = 0x71;
+
 /// The CBOR tag that is used for CIDs.
 const CBOR_TAGS_CID: u64 = 42;
