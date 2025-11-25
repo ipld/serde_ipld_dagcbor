@@ -1,5 +1,6 @@
 // NOTE: This file should be kept in sync with README.md
 
+#[cfg(feature = "std")]
 use serde_derive::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use std::error::Error;
@@ -10,6 +11,7 @@ use std::io::BufReader;
 
 // Types annotated with `Serialize` can be stored as DAG-CBOR.
 // To be able to load them again add `Deserialize`.
+#[cfg(feature = "std")]
 #[derive(Debug, Serialize, Deserialize)]
 struct Mascot {
     name: String,
