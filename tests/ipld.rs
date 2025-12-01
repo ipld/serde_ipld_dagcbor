@@ -79,12 +79,6 @@ fn unit_struct_not_supported() {
     assert!(ipld.is_err());
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct SmallStruct {
-    spam: u32,
-    eggs: u32,
-}
-
 #[derive(Debug, PartialEq, Clone, Deserialize_tuple, Serialize_tuple)]
 #[serde(deny_unknown_fields)]
 struct StructWithTupleSerialization {

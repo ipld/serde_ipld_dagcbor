@@ -85,11 +85,3 @@ fn test_variable_length_array_error() {
     let value: Result<Vec<Foo>, _> = from_slice(slice);
     assert!(matches!(value.unwrap_err(), DecodeError::IndefiniteSize));
 }
-
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-enum Bar {
-    Empty,
-    Number(i32),
-    Flag(String, bool),
-    Point { x: i32, y: i32 },
-}

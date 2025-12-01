@@ -3,7 +3,7 @@ use serde_derive::{Deserialize, Serialize};
 use serde_ipld_dagcbor::{from_slice, to_vec};
 
 fn to_binary(s: &'static str) -> Vec<u8> {
-    assert!(s.len() % 2 == 0);
+    assert!(s.len().is_multiple_of(2));
     let mut b = Vec::with_capacity(s.len() / 2);
     for i in 0..s.len() / 2 {
         b.push(u8::from_str_radix(&s[i * 2..(i + 1) * 2], 16).unwrap());
