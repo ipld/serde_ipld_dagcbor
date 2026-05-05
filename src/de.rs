@@ -8,11 +8,11 @@ use serde::Deserialize;
 use std::borrow::Cow;
 
 use cbor4ii::core::dec::{self, Decode};
-use cbor4ii::core::{major, types, utils::SliceReader};
+use cbor4ii::core::{major, marker, types, utils::SliceReader};
 use ipld_core::cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
 use serde::de::{self, Visitor};
 
-use crate::cbor4ii_nonpub::{marker, peek_one, pull_one};
+use crate::cbor4ii_nonpub::{peek_one, pull_one};
 use crate::error::DecodeError;
 use crate::CBOR_TAGS_CID;
 #[cfg(feature = "std")]
@@ -199,7 +199,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
         if self.reader.step_in() {
             Ok(scopeguard::guard(self, |de| de.reader.step_out()))
         } else {
-            Err(DecodeError::DepthLimit)
+            Err(DecodeError::DepthOverflow { name: "value" })
         }
     }
 
@@ -208,13 +208,13 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let tag = dec::TagStart::decode(&mut self.reader)?;
+        let tag = types::Tag::tag(&mut self.reader)?;
 
-        match tag.0 {
+        match tag {
             CBOR_TAGS_CID => visitor.visit_newtype_struct(&mut CidDeserializer(self)),
-            _ => Err(DecodeError::TypeMismatch {
+            _ => Err(DecodeError::Mismatch {
                 name: "CBOR tag",
-                byte: tag.0 as u8,
+                found: tag as u8,
             }),
         }
     }
@@ -222,9 +222,9 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     /// This method should be called after a value has been deserialized to ensure there is no
     /// trailing data in the input source.
     pub fn end(&mut self) -> Result<(), DecodeError<R::Error>> {
-        match peek_one(&mut self.reader) {
+        match peek_one("value", &mut self.reader) {
             Ok(_) => Err(DecodeError::TrailingData),
-            Err(DecodeError::Eof) => Ok(()),
+            Err(DecodeError::Eof { .. }) => Ok(()),
             Err(error) => Err(error),
         }
     }
@@ -243,7 +243,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
         let res = visitor.visit_seq(&mut seq)?;
         match seq.len {
             0 => Ok(res),
-            remaining => Err(DecodeError::RequireLength {
+            remaining => Err(DecodeError::LengthMismatch {
                 name,
                 expect: value - remaining,
                 value,
@@ -265,7 +265,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
         let res = visitor.visit_map(&mut map)?;
         match map.len {
             0 => Ok(res),
-            remaining => Err(DecodeError::RequireLength {
+            remaining => Err(DecodeError::LengthMismatch {
                 name,
                 expect: value - remaining,
                 value,
@@ -301,7 +301,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
         let mut de = self.try_step()?;
         let de = &mut *de;
 
-        let byte = peek_one(&mut de.reader)?;
+        let byte = peek_one("value", &mut de.reader)?;
         if is_indefinite(byte) {
             return Err(DecodeError::IndefiniteSize);
         }
@@ -337,9 +337,15 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
                 }
                 marker::F32 => de.deserialize_f32(visitor),
                 marker::F64 => de.deserialize_f64(visitor),
-                _ => Err(DecodeError::Unsupported { byte }),
+                _ => Err(DecodeError::Unsupported {
+                    name: "value",
+                    found: byte,
+                }),
             },
-            _ => Err(DecodeError::Unsupported { byte }),
+            _ => Err(DecodeError::Unsupported {
+                name: "value",
+                found: byte,
+            }),
         }
     }
 
@@ -372,7 +378,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
         // We also accept f32 encoding, although a strict DAG-CBOR
         // implementation should reject it (please don't write new data
         // with f32 encoding).
-        let byte = peek_one(&mut self.reader)?;
+        let byte = peek_one("f32", &mut self.reader)?;
         match byte {
             marker::F32 => {
                 // Note: f32 encoding is not valid in strict DAG-CBOR.
@@ -403,7 +409,10 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
 
                 visitor.visit_f32(f32_value)
             }
-            _ => Err(DecodeError::TypeMismatch { name: "f32", byte }),
+            _ => Err(DecodeError::Mismatch {
+                name: "f32",
+                found: byte,
+            }),
         }
     }
 
@@ -461,7 +470,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let byte = peek_one(&mut self.reader)?;
+        let byte = peek_one("option", &mut self.reader)?;
         if byte != marker::NULL {
             let mut de = self.try_step()?;
             visitor.visit_some(&mut **de)
@@ -476,11 +485,14 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let byte = pull_one(&mut self.reader)?;
+        let byte = pull_one("unit", &mut self.reader)?;
         if byte == marker::NULL {
             visitor.visit_unit()
         } else {
-            Err(DecodeError::TypeMismatch { name: "unit", byte })
+            Err(DecodeError::Mismatch {
+                name: "unit",
+                found: byte,
+            })
         }
     }
 
@@ -647,8 +659,8 @@ struct Accessor<'a, R> {
 impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     #[inline]
     fn array(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
-        let array_start = dec::ArrayStart::decode(&mut de.reader)?;
-        array_start.0.map_or_else(
+        let len = types::Array::len(&mut de.reader)?;
+        len.map_or_else(
             || Err(DecodeError::IndefiniteSize),
             move |len| Ok(Accessor { de, len }),
         )
@@ -656,8 +668,8 @@ impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
 
     #[inline]
     fn map(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
-        let map_start = dec::MapStart::decode(&mut de.reader)?;
-        map_start.0.map_or_else(
+        let len = types::Map::len(&mut de.reader)?;
+        len.map_or_else(
             || Err(DecodeError::IndefiniteSize),
             move |len| Ok(Accessor { de, len }),
         )
@@ -728,7 +740,7 @@ impl<'de, 'a, R: dec::Read<'de>> EnumAccessor<'a, R> {
     pub fn enum_(
         de: &'a mut Deserializer<R>,
     ) -> Result<EnumAccessor<'a, R>, DecodeError<R::Error>> {
-        let byte = peek_one(&mut de.reader)?;
+        let byte = peek_one("enum", &mut de.reader)?;
         match dec::if_major(byte) {
             // string
             major::STRING => Ok(EnumAccessor { de }),
@@ -737,7 +749,10 @@ impl<'de, 'a, R: dec::Read<'de>> EnumAccessor<'a, R> {
                 de.reader.advance(1);
                 Ok(EnumAccessor { de })
             }
-            _ => Err(DecodeError::TypeMismatch { name: "enum", byte }),
+            _ => Err(DecodeError::Mismatch {
+                name: "enum",
+                found: byte,
+            }),
         }
     }
 }
@@ -829,7 +844,7 @@ impl<'de, 'a, R: dec::Read<'de>> de::Deserializer<'de> for &'a mut CidDeserializ
 
     #[inline]
     fn deserialize_bytes<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let byte = peek_one(&mut self.0.reader)?;
+        let byte = peek_one("cid", &mut self.0.reader)?;
         match dec::if_major(byte) {
             major::BYTES => {
                 // CBOR encoded CIDs have a zero byte prefix we have to remove.
@@ -851,7 +866,10 @@ impl<'de, 'a, R: dec::Read<'de>> de::Deserializer<'de> for &'a mut CidDeserializ
                     }
                 }
             }
-            _ => Err(DecodeError::Unsupported { byte }),
+            _ => Err(DecodeError::Unsupported {
+                name: "cid",
+                found: byte,
+            }),
         }
     }
 
