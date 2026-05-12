@@ -160,9 +160,9 @@ fn test_rejected_tag() {
         de::from_slice(&[0xd9, 0xd9, 0xf7, 0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72]);
     assert!(matches!(
         ipld.unwrap_err(),
-        DecodeError::TypeMismatch {
+        DecodeError::Mismatch {
             name: "CBOR tag",
-            byte: 0xf7
+            found: 0xf7
         }
     ));
 }
@@ -187,10 +187,7 @@ fn test_crazy_list() {
 #[test]
 fn test_nan() {
     let ipld: Result<f64, _> = de::from_slice(b"\xf9\x7e\x00");
-    assert!(matches!(
-        ipld.unwrap_err(),
-        DecodeError::TypeMismatch { .. }
-    ));
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
 }
 
 #[test]
@@ -312,14 +309,14 @@ fn test_stream_deserializer_trailing_data() {
     assert_eq!(value_1, "foobar");
 
     // we should get back an Eof error
-    assert!(matches!(i.next(), Some(Err(DecodeError::Eof))));
+    assert!(matches!(i.next(), Some(Err(DecodeError::Eof { .. }))));
 }
 
 #[test]
 fn crash() {
     let file = include_bytes!("crash.cbor");
     let value_result: Result<Ipld, _> = de::from_slice(file);
-    assert!(matches!(value_result.unwrap_err(), DecodeError::Eof));
+    assert!(matches!(value_result.unwrap_err(), DecodeError::Eof { .. }));
 }
 
 use serde_ipld_dagcbor::de::from_slice;
@@ -365,7 +362,7 @@ fn invalid_string() {
     let result = serde_ipld_dagcbor::from_slice::<Ipld>(&input);
     assert!(matches!(
         result.unwrap_err(),
-        DecodeError::InvalidUtf8 { .. }
+        DecodeError::RequireUtf8 { .. }
     ));
 }
 
@@ -477,11 +474,11 @@ fn test_default_values() {
                 b: "yep".to_string(),
             }),
         },
-        // [202,"nup",false] has too many elements so it errors with RequireLength
+        // [202,"nup",false] has too many elements so it errors with LengthMismatch
         TestCase {
             hex: "8318ca636e7570f4",
             expected: Expected::Err(
-                |err| matches!(err, DecodeError::RequireLength{ name, expect, value} if *name == "TupleWithDefaultsStruct" && *expect == 2 && *value == 3),
+                |err| matches!(err, DecodeError::LengthMismatch{ name, expect, value} if *name == "TupleWithDefaultsStruct" && *expect == 2 && *value == 3),
             ),
         },
     ];
@@ -511,11 +508,11 @@ fn test_default_values() {
                 bop: 606,
             }),
         },
-        // [505,[202,"nup",false],606] has too many elements on inner so it errors with RequireLength
+        // [505,[202,"nup",false],606] has too many elements on inner so it errors with LengthMismatch
         TestCase {
             hex: "831901f98318ca636e7570f419025e",
             expected: Expected::Err(
-                |err| matches!(err, DecodeError::RequireLength{ name, expect, value} if *name == "TupleWithDefaultsStruct" && *expect == 2 && *value == 3),
+                |err| matches!(err, DecodeError::LengthMismatch{ name, expect, value} if *name == "TupleWithDefaultsStruct" && *expect == 2 && *value == 3),
             ),
         },
         // [505,[]]
@@ -589,13 +586,13 @@ fn test_default_values() {
         // [[1],2] -> error because inner has too few elements
         TestCase {
             hex: "82820102",
-            expected: Expected::Err(|err| matches!(err, DecodeError::Eof)),
+            expected: Expected::Err(|err| matches!(err, DecodeError::Eof { .. })),
         },
         // [[1,2,3],4] -> error because inner has too many elements
         TestCase {
             hex: "828301020304",
             expected: Expected::Err(
-                |err| matches!(err, DecodeError::RequireLength{ name, expect, value} if *name == "TupleIntInner" && *expect == 2 && *value == 3),
+                |err| matches!(err, DecodeError::LengthMismatch{ name, expect, value} if *name == "TupleIntInner" && *expect == 2 && *value == 3),
             ),
         },
         // [[1,2]] + 3 -> error because there's a trailing element
@@ -607,7 +604,7 @@ fn test_default_values() {
         TestCase {
             hex: "8183010203",
             expected: Expected::Err(
-                |err| matches!(err, DecodeError::RequireLength{ name, expect, value} if *name == "TupleIntInner" && *expect == 2 && *value == 3),
+                |err| matches!(err, DecodeError::LengthMismatch{ name, expect, value} if *name == "TupleIntInner" && *expect == 2 && *value == 3),
             ),
         },
     ];

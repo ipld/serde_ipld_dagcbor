@@ -4,8 +4,9 @@ use alloc::{
     collections::TryReserveError,
     string::{String, ToString},
 };
-use core::{convert::Infallible, fmt, num::TryFromIntError};
+use core::{convert::Infallible, fmt};
 
+pub use cbor4ii::core::error::{ArithmeticOverflow, Len};
 use serde::{de, ser};
 
 /// An encoding error.
@@ -56,70 +57,95 @@ impl<E: fmt::Debug> fmt::Display for EncodeError<E> {
     }
 }
 
-impl<E: fmt::Debug> From<cbor4ii::EncodeError<E>> for EncodeError<E> {
-    fn from(err: cbor4ii::EncodeError<E>) -> EncodeError<E> {
+impl<E: fmt::Debug> From<cbor4ii::core::error::EncodeError<E>> for EncodeError<E> {
+    fn from(err: cbor4ii::core::error::EncodeError<E>) -> EncodeError<E> {
         match err {
-            cbor4ii::EncodeError::Write(e) => EncodeError::Write(e),
-            // Needed as `cbor4ii::EncodeError` is markes as non_exhaustive
+            cbor4ii::core::error::EncodeError::Write(e) => EncodeError::Write(e),
+            // Future-proof against new upstream variants without an SDK bump; loses structured info
+            // but preserves the Display string.
             _ => EncodeError::Msg(err.to_string()),
         }
     }
 }
 
 /// A decoding error.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum DecodeError<E> {
     /// Custom error message.
     Msg(String),
     /// IO error.
     Read(E),
     /// End of file.
-    Eof,
-    /// Unexpected byte.
-    Mismatch {
-        /// Expected CBOR major type.
-        expect_major: u8,
-        /// Unexpected byte.
-        byte: u8,
-    },
-    /// Unexpected type.
-    TypeMismatch {
+    Eof {
         /// Type name.
         name: &'static str,
-        /// Type byte.
-        byte: u8,
+        /// Expected length.
+        expect: Len,
     },
-    /// Too large integer.
-    CastOverflow(TryFromIntError),
-    /// Overflowing 128-bit integers.
-    Overflow {
-        /// Type of integer.
+    /// Unexpected byte.
+    Mismatch {
+        /// Type name.
         name: &'static str,
+        /// Unexpected byte.
+        found: u8,
     },
-    /// Decoding bytes/strings might require a borrow.
-    RequireBorrowed {
-        /// Type name (e.g. "bytes", "str").
+    /// Unsupported byte.
+    Unsupported {
+        /// Type name.
         name: &'static str,
+        /// Unsupported byte.
+        found: u8,
     },
-    /// Length wasn't large enough. This error comes after attempting to consume the entirety of a
-    /// item with a known length and failing to do so.
+    /// Length wasn't large enough.
     RequireLength {
         /// Type name.
         name: &'static str,
-        /// Required length.
-        expect: usize,
-        /// Given length.
-        value: usize,
+        /// Available length.
+        found: Len,
+    },
+    /// Required a borrow.
+    RequireBorrowed {
+        /// Type name.
+        name: &'static str,
     },
     /// Invalid UTF-8.
-    InvalidUtf8(core::str::Utf8Error),
-    /// Unsupported byte.
-    Unsupported {
-        /// Unsupported bute.
-        byte: u8,
+    RequireUtf8 {
+        /// Type name.
+        name: &'static str,
+    },
+    /// Length overflow.
+    LengthOverflow {
+        /// Type name.
+        name: &'static str,
+        /// Encoded length.
+        found: Len,
+    },
+    /// Cast overflow.
+    CastOverflow {
+        /// Type name.
+        name: &'static str,
+    },
+    /// Arithmetic overflow.
+    ArithmeticOverflow {
+        /// Type name.
+        name: &'static str,
+        /// Direction of the overflow.
+        ty: ArithmeticOverflow,
     },
     /// Recursion limit reached.
-    DepthLimit,
+    DepthOverflow {
+        /// Type name.
+        name: &'static str,
+    },
+    /// CBOR array/map length didn't match what serde expected.
+    LengthMismatch {
+        /// Type name.
+        name: &'static str,
+        /// Expected length.
+        expect: usize,
+        /// Actual length.
+        value: usize,
+    },
     /// Trailing data.
     TrailingData,
     /// Indefinite sized item was encountered.
@@ -150,7 +176,6 @@ impl<E: fmt::Debug> de::Error for DecodeError<E> {
 impl<E: std::error::Error + 'static> std::error::Error for DecodeError<E> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            DecodeError::Msg(_) => None,
             DecodeError::Read(err) => Some(err),
             _ => None,
         }
@@ -166,33 +191,29 @@ impl<E: fmt::Debug> fmt::Display for DecodeError<E> {
     }
 }
 
-impl<E: fmt::Debug> From<cbor4ii::DecodeError<E>> for DecodeError<E> {
-    fn from(err: cbor4ii::DecodeError<E>) -> DecodeError<E> {
+impl<E: fmt::Debug> From<cbor4ii::core::error::DecodeError<E>> for DecodeError<E> {
+    fn from(err: cbor4ii::core::error::DecodeError<E>) -> DecodeError<E> {
+        use cbor4ii::core::error::DecodeError as Cbor4iiError;
         match err {
-            cbor4ii::DecodeError::Read(read) => DecodeError::Read(read),
-            cbor4ii::DecodeError::Eof => DecodeError::Eof,
-            cbor4ii::DecodeError::Mismatch { expect_major, byte } => {
-                DecodeError::Mismatch { expect_major, byte }
+            Cbor4iiError::Read(read) => DecodeError::Read(read),
+            Cbor4iiError::Eof { name, expect } => DecodeError::Eof { name, expect },
+            Cbor4iiError::Mismatch { name, found } => DecodeError::Mismatch { name, found },
+            Cbor4iiError::Unsupported { name, found } => DecodeError::Unsupported { name, found },
+            Cbor4iiError::RequireLength { name, found } => {
+                DecodeError::RequireLength { name, found }
             }
-            cbor4ii::DecodeError::TypeMismatch { name, byte } => {
-                DecodeError::TypeMismatch { name, byte }
+            Cbor4iiError::RequireBorrowed { name } => DecodeError::RequireBorrowed { name },
+            Cbor4iiError::RequireUtf8 { name } => DecodeError::RequireUtf8 { name },
+            Cbor4iiError::LengthOverflow { name, found } => {
+                DecodeError::LengthOverflow { name, found }
             }
-            cbor4ii::DecodeError::CastOverflow(overflow) => DecodeError::CastOverflow(overflow),
-            cbor4ii::DecodeError::Overflow { name } => DecodeError::Overflow { name },
-            cbor4ii::DecodeError::RequireBorrowed { name } => DecodeError::RequireBorrowed { name },
-            cbor4ii::DecodeError::RequireLength {
-                name,
-                expect,
-                value,
-            } => DecodeError::RequireLength {
-                name,
-                expect,
-                value,
-            },
-            cbor4ii::DecodeError::InvalidUtf8(invalid) => DecodeError::InvalidUtf8(invalid),
-            cbor4ii::DecodeError::Unsupported { byte } => DecodeError::Unsupported { byte },
-            cbor4ii::DecodeError::DepthLimit => DecodeError::DepthLimit,
-            // Needed as `cbor4ii::EncodeError` is markes as non_exhaustive
+            Cbor4iiError::CastOverflow { name } => DecodeError::CastOverflow { name },
+            Cbor4iiError::ArithmeticOverflow { name, ty } => {
+                DecodeError::ArithmeticOverflow { name, ty }
+            }
+            Cbor4iiError::DepthOverflow { name } => DecodeError::DepthOverflow { name },
+            // Future-proof against new upstream variants without an SDK bump; loses structured info
+            // but preserves the Display string.
             _ => DecodeError::Msg(err.to_string()),
         }
     }

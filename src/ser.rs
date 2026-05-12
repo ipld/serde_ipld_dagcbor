@@ -214,7 +214,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
         variant: &'static str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error> {
-        enc::MapStartBounded(1).encode(&mut self.writer)?;
+        types::Map::bounded(1, &mut self.writer)?;
         variant.encode(&mut self.writer)?;
         value.serialize(self)
     }
@@ -226,7 +226,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
 
     #[inline]
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        enc::ArrayStartBounded(len).encode(&mut self.writer)?;
+        types::Array::bounded(len, &mut self.writer)?;
         Ok(BoundedCollect { ser: self })
     }
 
@@ -247,9 +247,9 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        enc::MapStartBounded(1).encode(&mut self.writer)?;
+        types::Map::bounded(1, &mut self.writer)?;
         variant.encode(&mut self.writer)?;
-        enc::ArrayStartBounded(len).encode(&mut self.writer)?;
+        types::Array::bounded(len, &mut self.writer)?;
         Ok(BoundedCollect { ser: self })
     }
 
@@ -264,7 +264,7 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
         _name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        enc::MapStartBounded(len).encode(&mut self.writer)?;
+        types::Map::bounded(len, &mut self.writer)?;
         Ok(CollectMap::new(self))
     }
 
@@ -276,9 +276,9 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        enc::MapStartBounded(1).encode(&mut self.writer)?;
+        types::Map::bounded(1, &mut self.writer)?;
         variant.encode(&mut self.writer)?;
-        enc::MapStartBounded(len).encode(&mut self.writer)?;
+        types::Map::bounded(len, &mut self.writer)?;
         Ok(CollectMap::new(self))
     }
 
@@ -326,7 +326,7 @@ impl<'a, W: enc::Write> CollectSeq<'a, W> {
     /// the number of elements, which is then written before the elements are.
     fn new(ser: &'a mut Serializer<W>, len: Option<usize>) -> Result<Self, EncodeError<W::Error>> {
         let mem_ser = if let Some(len) = len {
-            enc::ArrayStartBounded(len).encode(&mut ser.writer)?;
+            types::Array::bounded(len, &mut ser.writer)?;
             None
         } else {
             Some(Serializer::new(BufWriter::new(Vec::new())))
@@ -365,7 +365,7 @@ impl<W: enc::Write> serde::ser::SerializeSeq for CollectSeq<'_, W> {
         // Data was buffered in order to be able to write out the number of elements before they
         // are serialized.
         if let Some(ser) = self.mem_ser {
-            enc::ArrayStartBounded(self.count).encode(&mut self.ser.writer)?;
+            types::Array::bounded(self.count, &mut self.ser.writer)?;
             self.ser.writer.push(&ser.into_inner().into_inner())?;
         }
 
@@ -500,7 +500,7 @@ where
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        enc::MapStartBounded(self.entries.len()).encode(&mut self.ser.writer)?;
+        types::Map::bounded(self.entries.len(), &mut self.ser.writer)?;
         self.end()
     }
 }
