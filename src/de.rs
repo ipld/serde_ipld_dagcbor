@@ -1,6 +1,7 @@
 //! Deserialization.
 #[cfg(not(feature = "std"))]
 use alloc::borrow::Cow;
+use cbor4ii::core::error;
 use core::convert::{Infallible, TryFrom};
 use core::marker::PhantomData;
 use serde::Deserialize;
@@ -194,12 +195,13 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     #[inline]
     fn try_step<'a>(
         &'a mut self,
+        name: error::StaticStr,
     ) -> Result<scopeguard::ScopeGuard<&'a mut Self, fn(&'a mut Self) -> ()>, DecodeError<R::Error>>
     {
         if self.reader.step_in() {
             Ok(scopeguard::guard(self, |de| de.reader.step_out()))
         } else {
-            Err(DecodeError::DepthOverflow { name: "value" })
+            Err(DecodeError::DepthOverflow { name })
         }
     }
 
@@ -222,7 +224,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     /// This method should be called after a value has been deserialized to ensure there is no
     /// trailing data in the input source.
     pub fn end(&mut self) -> Result<(), DecodeError<R::Error>> {
-        match peek_one("value", &mut self.reader) {
+        match peek_one("end", &mut self.reader) {
             Ok(_) => Err(DecodeError::TrailingData),
             Err(DecodeError::Eof { .. }) => Ok(()),
             Err(error) => Err(error),
@@ -237,7 +239,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step()?;
+        let mut de = self.try_step(&"seq")?;
         let mut seq = Accessor::array(&mut de)?;
         let value = seq.len;
         let res = visitor.visit_seq(&mut seq)?;
@@ -259,7 +261,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step()?;
+        let mut de = self.try_step(&"map")?;
         let mut map = Accessor::map(&mut de)?;
         let value = map.len;
         let res = visitor.visit_map(&mut map)?;
@@ -298,10 +300,11 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step()?;
+        let name = &"any";
+        let mut de = self.try_step(name)?;
         let de = &mut *de;
 
-        let byte = peek_one("value", &mut de.reader)?;
+        let byte = peek_one(name, &mut de.reader)?;
         if is_indefinite(byte) {
             return Err(DecodeError::IndefiniteSize);
         }
@@ -338,12 +341,12 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
                 marker::F32 => de.deserialize_f32(visitor),
                 marker::F64 => de.deserialize_f64(visitor),
                 _ => Err(DecodeError::Unsupported {
-                    name: "value",
+                    name: "any",
                     found: byte,
                 }),
             },
             _ => Err(DecodeError::Unsupported {
-                name: "value",
+                name: "any",
                 found: byte,
             }),
         }
@@ -470,9 +473,10 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let byte = peek_one("option", &mut self.reader)?;
+        let name = &"option";
+        let byte = peek_one(name, &mut self.reader)?;
         if byte != marker::NULL {
-            let mut de = self.try_step()?;
+            let mut de = self.try_step(name)?;
             visitor.visit_some(&mut **de)
         } else {
             self.reader.advance(1);
@@ -584,7 +588,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step()?;
+        let mut de = self.try_step(&"enum")?;
         let accessor = EnumAccessor::enum_(&mut de)?;
         visitor.visit_enum(accessor)
     }
