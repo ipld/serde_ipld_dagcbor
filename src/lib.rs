@@ -145,4 +145,4 @@ pub use crate::ser::to_writer;
 pub const DAG_CBOR_CODE: u64 = 0x71;
 
 /// The CBOR tag that is used for CIDs.
-const CBOR_TAGS_CID: u64 = 42;
+const CBOR_TAGS_CID: u8 = 42;

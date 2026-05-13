@@ -209,15 +209,23 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let tag = types::Tag::tag(&mut self.reader)?;
-
-        match tag {
-            CBOR_TAGS_CID => visitor.visit_newtype_struct(&mut CidDeserializer(self)),
-            _ => Err(DecodeError::Mismatch {
-                name: "CBOR tag",
-                found: tag as u8,
-            }),
+        // DAG-CBOR only supports tag 42 (CID), encoded minimally as `0xd8 0x2a`.
+        let head = pull_one("tag head", &mut self.reader)?;
+        if head != 0xd8 {
+            return Err(DecodeError::Mismatch {
+                name: "CBOR tag head",
+                found: head,
+            });
         }
+
+        let tag = pull_one("tag", &mut self.reader)?;
+        if tag != CBOR_TAGS_CID {
+            return Err(DecodeError::Mismatch {
+                name: "CBOR tag",
+                found: tag,
+            });
+        }
+        visitor.visit_newtype_struct(&mut CidDeserializer(self))
     }
 
     /// This method should be called after a value has been deserialized to ensure there is no
