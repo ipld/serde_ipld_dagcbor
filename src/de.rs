@@ -714,7 +714,13 @@ impl<'de, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'_, R> {
         K: de::DeserializeSeed<'de>,
     {
         if self.len > 0 {
+            let name = "map key";
             self.len -= 1;
+            // Map keys must be strings in DAG-CBOR.
+            let byte = peek_one(name, &mut self.de.reader)?;
+            if dec::if_major(byte) != major::STRING {
+                return Err(DecodeError::Mismatch { name, found: byte });
+            }
             Ok(Some(seed.deserialize(&mut *self.de)?))
         } else {
             Ok(None)

@@ -110,6 +110,38 @@ fn test_object() {
 }
 
 #[test]
+fn test_map_integer_key_rejected() {
+    // {1: 2} — integer key (major type 0), not a string.
+    let ipld: Result<Ipld, _> = de::from_slice(b"\xa1\x01\x02");
+    assert!(
+        matches!(
+            ipld.unwrap_err(),
+            DecodeError::Mismatch {
+                name: "map key",
+                found: 0x01,
+            }
+        ),
+        "expected map key mismatch"
+    );
+}
+
+#[test]
+fn test_map_bytes_key_rejected() {
+    // {h'01': 2} — byte-string key (major type 2), not a string.
+    let ipld: Result<Ipld, _> = de::from_slice(b"\xa1\x41\x01\x02");
+    assert!(
+        matches!(
+            ipld.unwrap_err(),
+            DecodeError::Mismatch {
+                name: "map key",
+                found: 0x41,
+            }
+        ),
+        "expected map key mismatch"
+    );
+}
+
+#[test]
 fn test_indefinite_object_error() {
     let ipld: Result<Ipld, _> = de::from_slice(b"\xbfaa\x01ab\x9f\x02\x03\xff\xff");
     let mut object = BTreeMap::new();

@@ -8,8 +8,9 @@ pub use cbor4ii::core::utils::BufWriter;
 #[cfg(feature = "std")]
 use cbor4ii::core::utils::IoWriter;
 use cbor4ii::core::{
+    dec,
     enc::{self, Encode},
-    types,
+    major, types,
 };
 use ipld_core::cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
 use serde::{ser, Serialize};
@@ -490,6 +491,12 @@ where
         let mut mem_serializer = Serializer::new(&mut self.buffer);
         key.serialize(&mut mem_serializer)
             .map_err(|_| EncodeError::Msg("Map key cannot be serialized.".to_string()))?;
+        // Map keys must be strings in DAG-CBOR.
+        if let Some(byte) = self.buffer.buffer().first() {
+            if dec::if_major(*byte) != major::STRING {
+                return Err(EncodeError::Msg("Map keys must be strings".into()));
+            }
+        }
         Ok(())
     }
 

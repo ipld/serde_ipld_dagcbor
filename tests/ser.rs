@@ -6,7 +6,7 @@ use serde_derive::Serialize;
 use serde_ipld_dagcbor::{
     from_slice,
     ser::{BufWriter, Serializer},
-    to_vec,
+    to_vec, EncodeError,
 };
 
 #[test]
@@ -251,4 +251,30 @@ fn test_struct_variant_canonical() {
         first_bytes,
         b"\xa1\x64Data\xa3\x61a\x01\x61b\x02\x63abc\x03"
     )
+}
+
+#[test]
+fn test_map_integer_key_rejected() {
+    let mut object = BTreeMap::new();
+    object.insert(1u32, "a");
+    object.insert(2u32, "b");
+    let err = to_vec(&object).unwrap_err();
+    assert!(
+        matches!(&err, EncodeError::Msg(msg) if msg.contains("Map keys must be strings")),
+        "unexpected error: {:?}",
+        err
+    );
+}
+
+#[test]
+fn test_map_bytes_key_rejected() {
+    let mut object = BTreeMap::new();
+    object.insert(ByteBuf::from(vec![1u8]), "a");
+    object.insert(ByteBuf::from(vec![2u8]), "b");
+    let err = to_vec(&object).unwrap_err();
+    assert!(
+        matches!(&err, EncodeError::Msg(msg) if msg.contains("Map keys must be strings")),
+        "unexpected error: {:?}",
+        err
+    );
 }
