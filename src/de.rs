@@ -367,9 +367,6 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
         u32,        deserialize_u32,        visit_u32;
         u64,        deserialize_u64,        visit_u64;
         u128,       deserialize_u128,       visit_u128;
-
-        // f32 deserialize is handled as a special case below
-        f64,        deserialize_f64,        visit_f64;
     );
 
     #[inline]
@@ -388,16 +385,25 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
             marker::F32 => {
                 // Note: f32 encoding is not valid in strict DAG-CBOR.
                 let value = <f32>::decode(&mut self.reader)?;
+                // DAG-CBOR forbids NaN and Infinity.
+                if !value.is_finite() {
+                    return Err(DecodeError::Mismatch { name, found: byte });
+                }
                 visitor.visit_f32(value)
             }
             marker::F64 => {
                 // DAG-CBOR always uses f64 encoding, even for f32 values
                 let value = <f64>::decode(&mut self.reader)?;
 
+                // DAG-CBOR forbids NaN and Infinity.
+                if !value.is_finite() {
+                    return Err(DecodeError::Mismatch { name, found: byte });
+                }
+
                 let f32_value = value as f32;
 
                 // Check if conversion causes overflow to infinity
-                if !f32_value.is_finite() && value.is_finite() {
+                if !f32_value.is_finite() {
                     // The f64 value is finite but becomes infinite when converted to f32
                     return Err(DecodeError::Msg("Float value out of range for f32".into()));
                 }
@@ -416,6 +422,21 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
             }
             _ => Err(DecodeError::Mismatch { name, found: byte }),
         }
+    }
+
+    #[inline]
+    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let name = "f64";
+        let byte = peek_one(name, &mut self.reader)?;
+        let value = <f64>::decode(&mut self.reader)?;
+        // DAG-CBOR forbids NaN and Infinity.
+        if !value.is_finite() {
+            return Err(DecodeError::Mismatch { name, found: byte });
+        }
+        visitor.visit_f64(value)
     }
 
     #[inline]
