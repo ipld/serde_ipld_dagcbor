@@ -1,7 +1,6 @@
 //! Deserialization.
 #[cfg(not(feature = "std"))]
 use alloc::borrow::Cow;
-use cbor4ii::core::error;
 use core::convert::{Infallible, TryFrom};
 use core::marker::PhantomData;
 use serde::Deserialize;
@@ -195,7 +194,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     #[inline]
     fn try_step<'a>(
         &'a mut self,
-        name: error::StaticStr,
+        name: &'static str,
     ) -> Result<scopeguard::ScopeGuard<&'a mut Self, fn(&'a mut Self) -> ()>, DecodeError<R::Error>>
     {
         if self.reader.step_in() {
@@ -239,7 +238,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step(&"seq")?;
+        let mut de = self.try_step(name)?;
         let mut seq = Accessor::array(&mut de)?;
         let value = seq.len;
         let res = visitor.visit_seq(&mut seq)?;
@@ -261,7 +260,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step(&"map")?;
+        let mut de = self.try_step(name)?;
         let mut map = Accessor::map(&mut de)?;
         let value = map.len;
         let res = visitor.visit_map(&mut map)?;
@@ -300,7 +299,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let name = &"any";
+        let name = "any";
         let mut de = self.try_step(name)?;
         let de = &mut *de;
 
@@ -340,15 +339,9 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
                 }
                 marker::F32 => de.deserialize_f32(visitor),
                 marker::F64 => de.deserialize_f64(visitor),
-                _ => Err(DecodeError::Unsupported {
-                    name: "any",
-                    found: byte,
-                }),
+                _ => Err(DecodeError::Unsupported { name, found: byte }),
             },
-            _ => Err(DecodeError::Unsupported {
-                name: "any",
-                found: byte,
-            }),
+            _ => Err(DecodeError::Unsupported { name, found: byte }),
         }
     }
 
@@ -376,12 +369,13 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
+        let name = "f32";
         // DAG-CBOR strictly requires all floats to be encoded as f64.
         // When deserializing to f32, we need to handle f64 encoding.
         // We also accept f32 encoding, although a strict DAG-CBOR
         // implementation should reject it (please don't write new data
         // with f32 encoding).
-        let byte = peek_one("f32", &mut self.reader)?;
+        let byte = peek_one(name, &mut self.reader)?;
         match byte {
             marker::F32 => {
                 // Note: f32 encoding is not valid in strict DAG-CBOR.
@@ -412,10 +406,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
 
                 visitor.visit_f32(f32_value)
             }
-            _ => Err(DecodeError::Mismatch {
-                name: "f32",
-                found: byte,
-            }),
+            _ => Err(DecodeError::Mismatch { name, found: byte }),
         }
     }
 
@@ -473,7 +464,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let name = &"option";
+        let name = "option";
         let byte = peek_one(name, &mut self.reader)?;
         if byte != marker::NULL {
             let mut de = self.try_step(name)?;
@@ -489,14 +480,12 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        let byte = pull_one("unit", &mut self.reader)?;
+        let name = "unit";
+        let byte = pull_one(name, &mut self.reader)?;
         if byte == marker::NULL {
             visitor.visit_unit()
         } else {
-            Err(DecodeError::Mismatch {
-                name: "unit",
-                found: byte,
-            })
+            Err(DecodeError::Mismatch { name, found: byte })
         }
     }
 
@@ -581,14 +570,14 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     #[inline]
     fn deserialize_enum<V>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let mut de = self.try_step(&"enum")?;
+        let mut de = self.try_step(name)?;
         let accessor = EnumAccessor::enum_(&mut de)?;
         visitor.visit_enum(accessor)
     }
@@ -744,7 +733,8 @@ impl<'de, 'a, R: dec::Read<'de>> EnumAccessor<'a, R> {
     pub fn enum_(
         de: &'a mut Deserializer<R>,
     ) -> Result<EnumAccessor<'a, R>, DecodeError<R::Error>> {
-        let byte = peek_one("enum", &mut de.reader)?;
+        let name = "enum";
+        let byte = peek_one(name, &mut de.reader)?;
         match dec::if_major(byte) {
             // string
             major::STRING => Ok(EnumAccessor { de }),
@@ -753,10 +743,7 @@ impl<'de, 'a, R: dec::Read<'de>> EnumAccessor<'a, R> {
                 de.reader.advance(1);
                 Ok(EnumAccessor { de })
             }
-            _ => Err(DecodeError::Mismatch {
-                name: "enum",
-                found: byte,
-            }),
+            _ => Err(DecodeError::Mismatch { name, found: byte }),
         }
     }
 }
