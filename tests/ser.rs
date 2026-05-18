@@ -1,5 +1,7 @@
+use std::str::FromStr;
 use std::{collections::BTreeMap, iter};
 
+use ipld_core::cid::Cid;
 use serde::de::value::{self, MapDeserializer, SeqDeserializer};
 use serde_bytes::{ByteBuf, Bytes};
 use serde_derive::Serialize;
@@ -32,6 +34,14 @@ fn test_object() {
     let vec = to_vec(&object).unwrap();
     let test_object = from_slice(&vec[..]).unwrap();
     assert_eq!(object, test_object);
+}
+
+#[test]
+fn test_object_charkey() {
+    let mut object = BTreeMap::new();
+    object.insert('c', 0u8);
+    let vec = to_vec(&object).unwrap();
+    assert_eq!(vec, b"\xa1\x61\x63\x00");
 }
 
 #[test]
@@ -254,27 +264,33 @@ fn test_struct_variant_canonical() {
 }
 
 #[test]
-fn test_map_integer_key_rejected() {
-    let mut object = BTreeMap::new();
-    object.insert(1u32, "a");
-    object.insert(2u32, "b");
-    let err = to_vec(&object).unwrap_err();
-    assert!(
-        matches!(&err, EncodeError::Msg(msg) if msg.contains("Map keys must be strings")),
-        "unexpected error: {:?}",
-        err
-    );
-}
+fn test_non_string_map_keys_rejected() {
+    // Serialize a single-entry map `{key: 0}` and expect it to be rejected
+    // because the key is not a string. `f64` is intentionally not tested here:
+    // it is the only basic type that isn't `Ord` (so it can't be a `BTreeMap`
+    // key), and the encoder rejects purely by CBOR major type, so floats
+    // (major type 7) are already covered by the `bool` and `null` keys.
+    fn assert_rejected<K: Ord + serde::Serialize>(key: K, what: &str) {
+        let mut map = BTreeMap::new();
+        map.insert(key, 0u8);
+        let err = to_vec(&map).unwrap_err();
+        assert!(
+            matches!(&err, EncodeError::Msg(msg) if msg.contains("Map keys must be strings")),
+            "{}: unexpected error: {:?}",
+            what,
+            err
+        );
+    }
 
-#[test]
-fn test_map_bytes_key_rejected() {
-    let mut object = BTreeMap::new();
-    object.insert(ByteBuf::from(vec![1u8]), "a");
-    object.insert(ByteBuf::from(vec![2u8]), "b");
-    let err = to_vec(&object).unwrap_err();
-    assert!(
-        matches!(&err, EncodeError::Msg(msg) if msg.contains("Map keys must be strings")),
-        "unexpected error: {:?}",
-        err
+    assert_rejected(1u64, "unsigned integer");
+    assert_rejected(-1i64, "negative integer");
+    assert_rejected(ByteBuf::from(vec![1u8]), "byte string");
+    assert_rejected(vec![1u8], "array");
+    assert_rejected(true, "bool");
+    assert_rejected((), "null (unit)");
+    assert_rejected(Option::<u8>::None, "null (none)");
+    assert_rejected(
+        Cid::from_str("bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy").unwrap(),
+        "CID (tag 42)",
     );
 }
