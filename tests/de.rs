@@ -110,6 +110,36 @@ fn test_object() {
 }
 
 #[test]
+fn test_non_string_map_keys_rejected() {
+    // Each case is a one-entry map (0xa1) whose key uses a non-string major type.
+    let cases: &[(&[u8], &str)] = &[
+        (b"\xa1\x01\x02", "unsigned integer (major 0)"),
+        (b"\xa1\x20\x02", "negative integer (major 1)"),
+        (b"\xa1\x41\x01\x02", "byte string (major 2)"),
+        (b"\xa1\x80\x02", "array (major 4)"),
+        (b"\xa1\xa0\x02", "map (major 5)"),
+        (b"\xa1\xd8\x2a\x58\x25\x00\x01\x55\x12\x20\x2c\x26\xb4\x6b\x68\xff\xc6\x8f\xf9\x9b\x45\x3c\x1d\x30\x41\x34\x13\x42\x2d\x70\x64\x83\xbf\xa0\xf9\x8a\x5e\x88\x62\x66\xe7\xae\x02", "CID/tag 42 (major 6)"),
+        (b"\xa1\xf4\x02", "bool false (major 7)"),
+        (b"\xa1\xf5\x02", "bool true (major 7)"),
+        (b"\xa1\xf6\x02", "null (major 7)"),
+        (b"\xa1\xfa\x3f\x80\x00\x00\x02", "float (major 7)"),
+    ];
+    for (bytes, what) in cases {
+        let ipld: Result<Ipld, _> = de::from_slice(bytes);
+        let err = ipld.unwrap_err();
+        // The second byte is the actual type that is reported in error messages.
+        let found = &bytes[1];
+        assert!(
+            matches!(&err, DecodeError::Mismatch { name: "map key", found: f } if f == found),
+            "{}: expected map key mismatch with found={:#04x}, got {:?}",
+            what,
+            found,
+            err
+        );
+    }
+}
+
+#[test]
 fn test_indefinite_object_error() {
     let ipld: Result<Ipld, _> = de::from_slice(b"\xbfaa\x01ab\x9f\x02\x03\xff\xff");
     let mut object = BTreeMap::new();
