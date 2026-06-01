@@ -225,8 +225,61 @@ fn test_crazy_list() {
 }
 
 #[test]
-fn test_nan() {
+fn test_nan_f16() {
     let ipld: Result<f64, _> = de::from_slice(b"\xf9\x7e\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+}
+
+#[test]
+fn test_nan_f32() {
+    // f32-encoded NaN deserialized as f32.
+    let ipld: Result<f32, _> = de::from_slice(b"\xfa\x7f\xc0\x00\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+    // f64-encoded NaN deserialized as f32.
+    let ipld: Result<f32, _> = de::from_slice(b"\xfb\x7f\xf8\x00\x00\x00\x00\x00\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+}
+
+#[test]
+fn test_nan_f64() {
+    let ipld: Result<f64, _> = de::from_slice(b"\xfb\x7f\xf8\x00\x00\x00\x00\x00\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+}
+
+#[test]
+fn test_nan_via_ipld() {
+    // f64-encoded NaN must also be rejected when going through `deserialize_any`.
+    let ipld: Result<Ipld, _> = de::from_slice(b"\xfb\x7f\xf8\x00\x00\x00\x00\x00\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+}
+
+#[test]
+fn test_infinity_f16() {
+    // f16-encoded +Infinity deserialized as f32.
+    let ipld: Result<f32, _> = de::from_slice(b"\xf9\x7c\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+    // f16-encoded -Infinity deserialized as f32.
+    let ipld: Result<f64, _> = de::from_slice(b"\xf9\xfc\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+}
+
+#[test]
+fn test_infinity_f32() {
+    // f32-encoded +Infinity deserialized as f32.
+    let ipld: Result<f32, _> = de::from_slice(b"\xfa\x7f\x80\x00\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+    // f64-encoded -Infinity deserialized as f32.
+    let ipld: Result<f32, _> = de::from_slice(b"\xfb\xff\xf0\x00\x00\x00\x00\x00\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+}
+
+#[test]
+fn test_infinity_f64() {
+    // +Infinity
+    let ipld: Result<f64, _> = de::from_slice(b"\xfb\x7f\xf0\x00\x00\x00\x00\x00\x00");
+    assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
+    // -Infinity
+    let ipld: Result<f64, _> = de::from_slice(b"\xfb\xff\xf0\x00\x00\x00\x00\x00\x00");
     assert!(matches!(ipld.unwrap_err(), DecodeError::Mismatch { .. }));
 }
 
