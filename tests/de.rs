@@ -931,3 +931,11 @@ fn test_bignum_tags_rejected() {
         DecodeError::Unsupported { .. }
     ));
 }
+
+#[test]
+fn test_map_duplicate_keys() {
+    // {"a": 1, "a": 1 }
+    let result: Result<BTreeMap<String, u8>, _> =
+        de::from_slice(&[0xa2, 0x61, 0x61, 0x00, 0x61, 0x61, 0x01]);
+    assert!(matches!(result.unwrap_err(), DecodeError::DuplicateKey));
+}

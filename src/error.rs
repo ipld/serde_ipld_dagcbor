@@ -157,6 +157,8 @@ pub enum DecodeError<E> {
         /// The non-minimal head byte.
         found: u8,
     },
+    /// Duplicate keys are not allowed in Maps.
+    DuplicateKey,
 }
 
 impl<E> From<E> for DecodeError<E> {
