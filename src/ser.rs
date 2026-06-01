@@ -618,7 +618,7 @@ where
         // The bytes of the CID is prefixed with a null byte when encoded as CBOR.
         let prefixed = [&[0x00], value].concat();
         // CIDs are serialized with CBOR tag 42.
-        types::Tag(CBOR_TAGS_CID, types::Bytes(&prefixed[..])).encode(&mut self.0.writer)?;
+        types::Tag(CBOR_TAGS_CID.into(), types::Bytes(&prefixed[..])).encode(&mut self.0.writer)?;
         Ok(())
     }
 

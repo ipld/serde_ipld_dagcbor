@@ -328,21 +328,20 @@ fn test_cid_non_minimally_encoded() {
     // Strip off the CBOR tag.
     let without_tag = &cid_encoded[2..];
 
+    // DAG-CBOR requires tags to be encoded minimally. Tag 42 must use the 1-byte
+    // form `0xd8 0x2a`; longer forms must be rejected.
     let tag_2_bytes_encoded = [&[0xd9, 0x00, 0x2a], without_tag].concat();
-    let tag_2_bytes_decoded: Cid = from_slice(&tag_2_bytes_encoded).unwrap();
-    assert_eq!(tag_2_bytes_decoded, cid);
+    assert!(from_slice::<Cid>(&tag_2_bytes_encoded).is_err());
 
     let tag_4_bytes_encoded = [&[0xda, 0x00, 0x00, 0x00, 0x2a], without_tag].concat();
-    let tag_4_bytes_decoded: Cid = from_slice(&tag_4_bytes_encoded).unwrap();
-    assert_eq!(tag_4_bytes_decoded, cid);
+    assert!(from_slice::<Cid>(&tag_4_bytes_encoded).is_err());
 
     let tag_8_bytes_encoded = [
         &[0xdb, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a],
         without_tag,
     ]
     .concat();
-    let tag_8_bytes_decoded: Cid = from_slice(&tag_8_bytes_encoded).unwrap();
-    assert_eq!(tag_8_bytes_decoded, cid);
+    assert!(from_slice::<Cid>(&tag_8_bytes_encoded).is_err());
 }
 
 #[test]

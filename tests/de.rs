@@ -186,13 +186,23 @@ fn test_float() {
 
 #[test]
 fn test_rejected_tag() {
-    let ipld: Result<Ipld, _> =
-        de::from_slice(&[0xd9, 0xd9, 0xf7, 0x66, 0x66, 0x6f, 0x6f, 0x62, 0x61, 0x72]);
+    // Tag 42, but not minimally encoded.
+    let ipld: Result<Ipld, _> = de::from_slice(&[0xd9, 0x00, 0x2a, 0x43, 0x00, 0x01, 0x02]);
+    assert!(matches!(
+        ipld.unwrap_err(),
+        DecodeError::Mismatch {
+            name: "CBOR tag head",
+            found: 0xd9
+        }
+    ));
+
+    // Minimally encoded tag, but not tag 42.
+    let ipld: Result<Ipld, _> = de::from_slice(&[0xd8, 0x28, 0x42, 0x00, 0x01]);
     assert!(matches!(
         ipld.unwrap_err(),
         DecodeError::Mismatch {
             name: "CBOR tag",
-            found: 0xf7
+            found: 0x28
         }
     ));
 }
