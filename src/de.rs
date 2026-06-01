@@ -709,7 +709,7 @@ where
 struct Accessor<'de, 'a, R> {
     de: &'a mut Deserializer<R>,
     len: usize,
-    /// The previous map key, used to prevent duplicate keys.
+    /// The previous map key, used to prevent duplicate keys and to enforce correct key ordering.
     last_key: Option<Cow<'de, str>>,
 }
 
@@ -793,8 +793,15 @@ impl<'de, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'de, '_, R> {
             let key = <Cow<str>>::decode(&mut self.de.reader)?;
             check_minimal(name, byte, key.len() as u64)?;
             if let Some(last_key) = &self.last_key {
-                if dagcbor_key_cmp(last_key, &key) == Ordering::Equal {
-                    return Err(DecodeError::DuplicateKey);
+                match dagcbor_key_cmp(last_key, &key) {
+                    Ordering::Equal => {
+                        return Err(DecodeError::DuplicateKey);
+                    }
+                    Ordering::Greater => {
+                        #[cfg(not(feature = "less-strict-decoding"))]
+                        return Err(DecodeError::UnorderedKey);
+                    }
+                    Ordering::Less => {}
                 }
             }
 

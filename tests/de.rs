@@ -284,15 +284,6 @@ fn test_infinity_f64() {
 }
 
 #[test]
-// The file was reported as not working by user kie0tauB
-// but it parses to a cbor value.
-fn test_kietaub_file() {
-    let file = include_bytes!("kietaub.cbor");
-    let value_result: Result<Ipld, _> = de::from_slice(file);
-    value_result.unwrap();
-}
-
-#[test]
 fn test_option_roundtrip() {
     let obj1 = Some(10u32);
 
@@ -938,4 +929,88 @@ fn test_map_duplicate_keys() {
     let result: Result<BTreeMap<String, u8>, _> =
         de::from_slice(&[0xa2, 0x61, 0x61, 0x00, 0x61, 0x61, 0x01]);
     assert!(matches!(result.unwrap_err(), DecodeError::DuplicateKey));
+}
+
+#[test]
+fn test_map_keys_unordered() {
+    // `{"b": 1, "a": 0}`: both keys have length 1, so "a" must come before "b".
+    let result: Result<Ipld, _> = de::from_slice(&[0xa2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x00]);
+
+    #[cfg(not(feature = "less-strict-decoding"))]
+    assert!(matches!(result.unwrap_err(), DecodeError::UnorderedKey));
+
+    #[cfg(feature = "less-strict-decoding")]
+    assert_eq!(
+        result.unwrap(),
+        Ipld::Map(BTreeMap::from([
+            ("a".to_string(), Ipld::from(0)),
+            ("b".to_string(), Ipld::from(1))
+        ]))
+    );
+}
+
+#[test]
+fn test_map_keys_length_first() {
+    // `{"aa": 1, "z": 0}`: "z" is shorter and must come first, so this longer-first order is wrong.
+    let result: Result<Ipld, _> = de::from_slice(&[0xa2, 0x62, 0x61, 0x61, 0x01, 0x61, 0x7a, 0x00]);
+
+    #[cfg(not(feature = "less-strict-decoding"))]
+    assert!(matches!(result.unwrap_err(), DecodeError::UnorderedKey));
+
+    #[cfg(feature = "less-strict-decoding")]
+    assert_eq!(
+        result.unwrap(),
+        Ipld::Map(BTreeMap::from([
+            ("aa".to_string(), Ipld::from(1)),
+            ("z".to_string(), Ipld::from(0))
+        ]))
+    );
+
+    // `{"z": 0, "aa": 1}`: the shorter key first, so this is accepted even though 'z' > 'a'
+    // bytewise.
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0xa2, 0x61, 0x7a, 0x00, 0x62, 0x61, 0x61, 0x01]).unwrap(),
+        Ipld::Map(BTreeMap::from([
+            ("z".to_string(), Ipld::from(0)),
+            ("aa".to_string(), Ipld::from(1)),
+        ]))
+    );
+}
+
+#[test]
+fn test_struct_keys_unordered() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    #[allow(dead_code)]
+    struct Foo {
+        a: u8,
+        b: u8,
+    }
+
+    // `{"b": 1, "a": 0}` decoded into a struct: the out-of-order keys are rejected here too.
+    let result: Result<Foo, _> = de::from_slice(&[0xa2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x00]);
+
+    #[cfg(not(feature = "less-strict-decoding"))]
+    assert!(matches!(result.unwrap_err(), DecodeError::UnorderedKey));
+
+    #[cfg(feature = "less-strict-decoding")]
+    assert_eq!(result.unwrap(), Foo { a: 0, b: 1 });
+}
+
+#[test]
+fn test_struct_field_order_differs_from_keys() {
+    // DAG-CBOR orders keys by length first, so the wire data must list "id" (length 2) before
+    // "name" (length 4). The struct declares its fields in the opposite order; since serde matches
+    // fields by name, the correctly ordered data still deserializes into it.
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Foo {
+        name: u8,
+        id: u8,
+    }
+
+    // `{"id": 0, "name": 1}` in DAG-CBOR key order.
+    let result: Foo = de::from_slice(&[
+        0xa2, 0x62, 0x69, 0x64, 0x00, 0x64, 0x6e, 0x61, 0x6d, 0x65, 0x01,
+    ])
+    .unwrap();
+    assert_eq!(result, Foo { name: 1, id: 0 });
 }

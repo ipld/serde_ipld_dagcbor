@@ -51,3 +51,6 @@ jobs:
 
       - name: Test no-cid-as-bytes feature
         run: cargo test --all-targets --workspace --features no-cid-as-bytes
+
+      - name: Test less-strict-decoding feature
+        run: cargo test --all-targets --workspace --features less-strict-decoding
