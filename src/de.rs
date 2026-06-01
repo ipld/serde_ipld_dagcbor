@@ -283,19 +283,32 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
     }
 }
 
-macro_rules! deserialize_type {
+macro_rules! deserialize_int {
     ( @ $t:ty , $name:ident , $visit:ident ) => {
         #[inline]
         fn $name<V>(self, visitor: V) -> Result<V::Value, Self::Error>
         where V: Visitor<'de>
         {
+            let name = stringify!($t);
+            let head = peek_one(name, &mut self.reader)?;
             let value = <$t>::decode(&mut self.reader)?;
+            // DAG-CBOR requires the head's argument to be minimally encoded. For an unsigned head
+            // (major type 0) the argument is `value`. For a negative head (major type 1) it is
+            // `-1 - value`, which in two's complement is the bitwise complement `!value`. In each
+            // branch the argument is non-negative and within `u64`, so the cast is exact.
+            match dec::if_major(head) {
+                major::UNSIGNED => check_minimal(name, head, value as u64)?,
+                major::NEGATIVE => check_minimal(name, head, !value as u64)?,
+                // cbor4ii allows decoding of CBOR big integers (type 6, tags 2 and 3) as
+                // `i128`/`u128. Reject those.
+                _ => return Err(DecodeError::Unsupported { name, found: head }),
+            }
             visitor.$visit(value)
         }
     };
     ( $( $t:ty , $name:ident , $visit:ident );* $( ; )? ) => {
         $(
-            deserialize_type!(@ $t, $name, $visit);
+            deserialize_int!(@ $t, $name, $visit);
         )*
     };
 }
@@ -321,6 +334,9 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
                 // CBOR supports negative integers up to -2^64 which is less than i64::MIN. Only
                 // treat it as i128, if it is outside the i64 range.
                 let value = i128::decode(&mut de.reader)?;
+                // Enforce minimal encoding; the negative head's argument is `-1 - value`, which in
+                // two's complement is the bitwise complement `!value`.
+                check_minimal(name, byte, !value as u64)?;
                 match i64::try_from(value) {
                     Ok(value_i64) => visitor.visit_i64(value_i64),
                     Err(_) => visitor.visit_i128(value),
@@ -353,9 +369,16 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
         }
     }
 
-    deserialize_type!(
-        bool,       deserialize_bool,       visit_bool;
+    #[inline]
+    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let value = <bool>::decode(&mut self.reader)?;
+        visitor.visit_bool(value)
+    }
 
+    deserialize_int!(
         i8,         deserialize_i8,         visit_i8;
         i16,        deserialize_i16,        visit_i16;
         i32,        deserialize_i32,        visit_i32;
@@ -455,7 +478,11 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        match <types::Bytes<Cow<[u8]>>>::decode(&mut self.reader)?.0 {
+        let name = "bytes";
+        let head = peek_one(name, &mut self.reader)?;
+        let bytes = <types::Bytes<Cow<[u8]>>>::decode(&mut self.reader)?.0;
+        check_minimal(name, head, bytes.len() as u64)?;
+        match bytes {
             Cow::Borrowed(buf) => visitor.visit_borrowed_bytes(buf),
             Cow::Owned(buf) => visitor.visit_byte_buf(buf),
         }
@@ -474,7 +501,11 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        match <Cow<str>>::decode(&mut self.reader)? {
+        let name = "string";
+        let head = peek_one(name, &mut self.reader)?;
+        let string = <Cow<str>>::decode(&mut self.reader)?;
+        check_minimal(name, head, string.len() as u64)?;
+        match string {
             Cow::Borrowed(buf) => visitor.visit_borrowed_str(buf),
             Cow::Owned(buf) => visitor.visit_string(buf),
         }
@@ -681,20 +712,28 @@ struct Accessor<'a, R> {
 impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
     #[inline]
     fn array(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
-        let len = types::Array::len(&mut de.reader)?;
-        len.map_or_else(
-            || Err(DecodeError::IndefiniteSize),
-            move |len| Ok(Accessor { de, len }),
-        )
+        let name = "array";
+        let head = peek_one(name, &mut de.reader)?;
+        match types::Array::len(&mut de.reader)? {
+            None => Err(DecodeError::IndefiniteSize),
+            Some(len) => {
+                check_minimal(name, head, len as u64)?;
+                Ok(Accessor { de, len })
+            }
+        }
     }
 
     #[inline]
     fn map(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
-        let len = types::Map::len(&mut de.reader)?;
-        len.map_or_else(
-            || Err(DecodeError::IndefiniteSize),
-            move |len| Ok(Accessor { de, len }),
-        )
+        let name = "map";
+        let head = peek_one(name, &mut de.reader)?;
+        match types::Map::len(&mut de.reader)? {
+            None => Err(DecodeError::IndefiniteSize),
+            Some(len) => {
+                check_minimal(name, head, len as u64)?;
+                Ok(Accessor { de, len })
+            }
+        }
     }
 }
 
@@ -874,7 +913,9 @@ impl<'de, 'a, R: dec::Read<'de>> de::Deserializer<'de> for &'a mut CidDeserializ
         match dec::if_major(byte) {
             major::BYTES => {
                 // CBOR encoded CIDs have a zero byte prefix we have to remove.
-                match <types::Bytes<Cow<[u8]>>>::decode(&mut self.0.reader)?.0 {
+                let bytes = <types::Bytes<Cow<[u8]>>>::decode(&mut self.0.reader)?.0;
+                check_minimal("cid", byte, bytes.len() as u64)?;
+                match bytes {
                     Cow::Borrowed(buf) => {
                         if buf.len() <= 1 || buf[0] != 0 {
                             Err(DecodeError::Msg("Invalid CID".into()))
@@ -925,4 +966,31 @@ impl<'de, 'a, R: dec::Read<'de>> de::Deserializer<'de> for &'a mut CidDeserializ
 #[inline]
 pub fn is_indefinite(byte: u8) -> bool {
     byte & marker::START == marker::START
+}
+
+/// Checks that a CBOR head was minimally encoded.
+///
+/// DAG-CBOR requires the argument of a head (an integer value, or the length of a byte string,
+/// text string, array or map, or a tag number) to be encoded in the shortest possible form. Given
+/// the `head` byte that was peeked before decoding and the `arg` value that was decoded from it,
+/// this verifies that the head used the smallest possible width.
+#[inline]
+fn check_minimal<E>(name: &'static str, head: u8, arg: u64) -> Result<(), DecodeError<E>> {
+    // The low 5 bits of the head are the "additional info" describing the argument width. As the
+    // width is already known, the encoding is minimal exactly when `arg` is too large to have used
+    // a narrower one, i.e. when it reaches the smallest value that width is needed for.
+    let min = match head & 0x1f {
+        0x18 => 24,
+        0x19 => 1 << 8,
+        0x1a => 1 << 16,
+        0x1b => 1 << 32,
+        // Inline values (0x00..=0x17) are always minimal; reserved and indefinite codes
+        // (0x1c..=0x1f) are rejected by the decoder before reaching this point.
+        _ => return Ok(()),
+    };
+    if arg >= min {
+        Ok(())
+    } else {
+        Err(DecodeError::NonMinimal { name, found: head })
+    }
 }

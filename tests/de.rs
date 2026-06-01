@@ -776,3 +776,158 @@ fn test_default_values() {
         }
     }
 }
+
+// DAG-CBOR requires integers and lengths to be encoded in the shortest possible form. The
+// following tests make sure that non-minimally encoded data is rejected, while the equivalent
+// minimal encoding is accepted.
+fn is_non_minimal(bytes: &[u8]) -> bool {
+    let result: Result<Ipld, _> = de::from_slice(bytes);
+    matches!(result.unwrap_err(), DecodeError::NonMinimal { .. })
+}
+
+#[test]
+fn test_unsigned_non_minimal() {
+    // The value 5 fits in the head, so any wider encoding is non-minimal.
+    assert!(is_non_minimal(&[0x18, 0x05]));
+    assert!(is_non_minimal(&[0x19, 0x00, 0x05]));
+    assert!(is_non_minimal(&[0x1a, 0x00, 0x00, 0x00, 0x05]));
+    assert!(is_non_minimal(&[
+        0x1b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05
+    ]));
+
+    // The value 256 fits in 2 bytes, so 4- and 8-byte encodings are non-minimal.
+    assert!(is_non_minimal(&[0x1a, 0x00, 0x00, 0x01, 0x00]));
+
+    // The value 24 needs the 1-byte form, but here it is wrongly put in the 2-byte form.
+    assert!(is_non_minimal(&[0x19, 0x00, 0x18]));
+}
+
+#[test]
+fn test_unsigned_minimal_ok() {
+    assert_eq!(de::from_slice::<Ipld>(&[0x05]).unwrap(), Ipld::Integer(5));
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x18, 0x18]).unwrap(),
+        Ipld::Integer(24)
+    );
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x19, 0x01, 0x00]).unwrap(),
+        Ipld::Integer(256)
+    );
+    // The smallest values that need the 4- and 8-byte forms, so those widths are minimal here.
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x1a, 0x00, 0x01, 0x00, 0x00]).unwrap(),
+        Ipld::Integer(65536)
+    );
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x1b, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]).unwrap(),
+        Ipld::Integer(4294967296)
+    );
+}
+
+#[test]
+fn test_negative_non_minimal() {
+    // -1 (argument 0) fits in the head, so any wider encoding is non-minimal.
+    assert!(is_non_minimal(&[0x38, 0x00]));
+    assert!(is_non_minimal(&[0x39, 0x00, 0x00]));
+    assert!(is_non_minimal(&[0x3a, 0x00, 0x00, 0x00, 0x00]));
+    assert!(is_non_minimal(&[
+        0x3b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    ]));
+
+    // -1000 has argument 999 which fits in 2 bytes, so the 4-byte form is non-minimal.
+    assert!(is_non_minimal(&[0x3a, 0x00, 0x00, 0x03, 0xe7]));
+}
+
+#[test]
+fn test_negative_minimal_ok() {
+    assert_eq!(de::from_slice::<Ipld>(&[0x20]).unwrap(), Ipld::Integer(-1));
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x39, 0x03, 0xe7]).unwrap(),
+        Ipld::Integer(-1000)
+    );
+}
+
+#[test]
+fn test_byte_string_length_non_minimal() {
+    // A one byte byte string whose length (1) fits in the head, encoded in wider forms.
+    assert!(is_non_minimal(&[0x58, 0x01, 0xff]));
+    assert!(is_non_minimal(&[0x59, 0x00, 0x01, 0xff]));
+    assert!(is_non_minimal(&[0x5a, 0x00, 0x00, 0x00, 0x01, 0xff]));
+    assert!(is_non_minimal(&[
+        0x5b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff
+    ]));
+}
+
+#[test]
+fn test_text_string_length_non_minimal() {
+    // A one character text string whose length (1) fits in the head, encoded in wider forms.
+    assert!(is_non_minimal(&[0x78, 0x01, 0x61]));
+    assert!(is_non_minimal(&[0x79, 0x00, 0x01, 0x61]));
+    assert!(is_non_minimal(&[0x7a, 0x00, 0x00, 0x00, 0x01, 0x61]));
+    assert!(is_non_minimal(&[
+        0x7b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x61
+    ]));
+}
+
+#[test]
+fn test_array_length_non_minimal() {
+    // A single element array whose length (1) fits in the head, encoded in wider forms.
+    assert!(is_non_minimal(&[0x98, 0x01, 0x01]));
+    assert!(is_non_minimal(&[0x99, 0x00, 0x01, 0x01]));
+    assert!(is_non_minimal(&[0x9a, 0x00, 0x00, 0x00, 0x01, 0x01]));
+    assert!(is_non_minimal(&[
+        0x9b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01
+    ]));
+}
+
+#[test]
+fn test_map_length_non_minimal() {
+    // A single entry map (key "a" => 1) whose length (1) fits in the head, encoded in wider forms.
+    assert!(is_non_minimal(&[0xb8, 0x01, 0x61, 0x61, 0x01]));
+    assert!(is_non_minimal(&[0xb9, 0x00, 0x01, 0x61, 0x61, 0x01]));
+    assert!(is_non_minimal(&[
+        0xba, 0x00, 0x00, 0x00, 0x01, 0x61, 0x61, 0x01
+    ]));
+    assert!(is_non_minimal(&[
+        0xbb, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x61, 0x61, 0x01
+    ]));
+}
+
+#[test]
+fn test_lengths_minimal_ok() {
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x41, 0xff]).unwrap(),
+        Ipld::Bytes(vec![0xff])
+    );
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x61, 0x61]).unwrap(),
+        Ipld::String("a".to_string())
+    );
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x81, 0x01]).unwrap(),
+        Ipld::List(vec![Ipld::Integer(1)])
+    );
+}
+
+/// DAG-CBOR permits only tag 42 (CID). The CBOR bignum tags (tag 2 for positive, tag 3 for
+/// negative), which CBOR otherwise allows for integers that don't fit in 64 bits, must be rejected.
+#[test]
+fn test_bignum_tags_rejected() {
+    // `0xc2 0x41 0x01`: tag 2 (positive bignum) wrapping the byte string `[0x01]` (the value 1).
+    let positive_bignum = [0xc2, 0x41, 0x01];
+    assert!(matches!(
+        de::from_slice::<u128>(&positive_bignum).unwrap_err(),
+        DecodeError::Unsupported { .. }
+    ));
+    assert!(matches!(
+        de::from_slice::<i128>(&positive_bignum).unwrap_err(),
+        DecodeError::Unsupported { .. }
+    ));
+
+    // `0xc3 0x41 0x00`: tag 3 (negative bignum) wrapping the byte string `[0x00]` (the value -1).
+    let negative_bignum = [0xc3, 0x41, 0x00];
+    assert!(matches!(
+        de::from_slice::<i128>(&negative_bignum).unwrap_err(),
+        DecodeError::Unsupported { .. }
+    ));
+}
