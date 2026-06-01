@@ -157,6 +157,9 @@ pub enum DecodeError<E> {
         /// The non-minimal head byte.
         found: u8,
     },
+    /// Map keys were not sorted in the order DAG-CBOR requires (shorter keys first, then
+    /// bytewise).
+    UnorderedKey,
 }
 
 impl<E> From<E> for DecodeError<E> {

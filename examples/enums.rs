@@ -97,13 +97,13 @@ impl<'de> de::Deserialize<'de> for Kinded {
 pub fn main() {
     let cid: Cid = from_slice(&CBOR_CID_FIXTURE).unwrap();
 
-    // {"type": "MyCid", "cid": 42(h'00015512202C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE')}
+    // {"cid": 42(h'00015512202C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE'), "type": "MyCid"}
     let cbor_internally_tagged_enum = [
-        &[
-            0xa2, 0x64, 0x74, 0x79, 0x70, 0x65, 0x65, 0x4d, 0x79, 0x43, 0x69, 0x64, 0x63, 0x63,
-            0x69, 0x64,
-        ],
+        &[0xa2, 0x63, 0x63, 0x69, 0x64],
         &CBOR_CID_FIXTURE[..],
+        &[
+            0x64, 0x74, 0x79, 0x70, 0x65, 0x65, 0x4d, 0x79, 0x43, 0x69, 0x64,
+        ],
     ]
     .concat();
     assert_eq!(
