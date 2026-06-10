@@ -70,11 +70,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 Features
 --------
 
-### `codec`
-
-The `codec` feature is enabled by default, it provides the `Codec` trait, which enables encoding and decoding independent of the IPLD Codec. The minimum supported Rust version (MSRV) can significantly be reduced to 1.64 by disabling this feature.
-
-
 ### `less-strict-decoding`
 
 The decoding of data is as strict as possible. When enabling this feature, it's a bit less strict. If you run into decoding errors for your not fully DAG-CBOR compliant data, try this feature flag first.

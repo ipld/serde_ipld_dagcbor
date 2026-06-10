@@ -12,11 +12,12 @@ license = "MIT/Apache-2.0"
 description = "IPLD DAG-CBOR support for Serde."
 keywords = ["serde", "cbor", "serialization", "no_std"]
 categories = ["encoding"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.81"
 
 [dependencies]
 cbor4ii = { version = "1.2.2", default-features = false, features = ["use_alloc"] }
-ipld-core = { version = "0.4.2", default-features = false, features = ["serde"] }
+ipld-core = { version = "0.4.2", default-features = false, features = ["serde", "codec"] }
 scopeguard = { version = "1.1.0", default-features = false }
 serde = { version = "1.0.164", default-features = false, features = ["alloc"] }
 
@@ -30,10 +31,8 @@ serde_tuple = "1.1.0"
 serde = { version = "1.0.164", default-features = false, features = ["rc"] }
 
 [features]
-default = ["codec", "std"]
+default = ["std"]
 std = ["cbor4ii/use_std", "ipld-core/std", "serde/std", "serde_bytes/std"]
-# Enable the `Codec` trait implementation. It's a separate feature as it needs Rust >= 1.75.
-codec = ["ipld-core/codec"]
 # Prevent deserializing CIDs as bytes as much as possible.
 no-cid-as-bytes = []
 # Don't be as strict on decoding data as on the encoding side.
