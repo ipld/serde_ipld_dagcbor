@@ -159,6 +159,9 @@ pub enum DecodeError<E> {
     },
     /// Duplicate keys are not allowed in Maps.
     DuplicateKey,
+    /// Map keys were not sorted in the order DAG-CBOR requires (shorter keys first, then
+    /// bytewise).
+    UnorderedKey,
 }
 
 impl<E> From<E> for DecodeError<E> {

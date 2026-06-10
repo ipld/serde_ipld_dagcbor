@@ -36,3 +36,5 @@ std = ["cbor4ii/use_std", "ipld-core/std", "serde/std", "serde_bytes/std"]
 codec = ["ipld-core/codec"]
 # Prevent deserializing CIDs as bytes as much as possible.
 no-cid-as-bytes = []
+# Don't be as strict on decoding data as on the encoding side.
+less-strict-decoding = []
