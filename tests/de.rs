@@ -894,6 +894,20 @@ fn test_map_length_non_minimal() {
 }
 
 #[test]
+fn test_map_key_length_non_minimal() {
+    // A single entry map (key "a" => 1) where the key's text string length (1) fits in the head,
+    // but is encoded in wider forms.
+    assert!(is_non_minimal(&[0xa1, 0x78, 0x01, 0x61, 0x01]));
+    assert!(is_non_minimal(&[0xa1, 0x79, 0x00, 0x01, 0x61, 0x01]));
+    assert!(is_non_minimal(&[
+        0xa1, 0x7a, 0x00, 0x00, 0x00, 0x01, 0x61, 0x01
+    ]));
+    assert!(is_non_minimal(&[
+        0xa1, 0x7b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x61, 0x01
+    ]));
+}
+
+#[test]
 fn test_lengths_minimal_ok() {
     assert_eq!(
         de::from_slice::<Ipld>(&[0x41, 0xff]).unwrap(),
