@@ -1,8 +1,11 @@
 //! Deserialization.
 #[cfg(not(feature = "std"))]
 use alloc::borrow::Cow;
+#[cfg(not(feature = "less-strict-decoding"))]
+use core::cmp::Ordering;
 use core::convert::{Infallible, TryFrom};
 use core::marker::PhantomData;
+use serde::de::IntoDeserializer;
 use serde::Deserialize;
 #[cfg(feature = "std")]
 use std::borrow::Cow;
@@ -704,40 +707,51 @@ where
     }
 }
 
-struct Accessor<'a, R> {
+struct Accessor<'de, 'a, R> {
     de: &'a mut Deserializer<R>,
     len: usize,
+    /// The previous map key, used to prevent duplicate keys and to enforce correct key ordering.
+    #[cfg_attr(feature = "less-strict-decoding", allow(dead_code))]
+    last_key: Option<Cow<'de, str>>,
 }
 
-impl<'de, 'a, R: dec::Read<'de>> Accessor<'a, R> {
+impl<'de, 'a, R: dec::Read<'de>> Accessor<'de, 'a, R> {
     #[inline]
-    fn array(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
+    fn array(de: &'a mut Deserializer<R>) -> Result<Accessor<'de, 'a, R>, DecodeError<R::Error>> {
         let name = "array";
         let head = peek_one(name, &mut de.reader)?;
         match types::Array::len(&mut de.reader)? {
             None => Err(DecodeError::IndefiniteSize),
             Some(len) => {
                 check_minimal(name, head, len as u64)?;
-                Ok(Accessor { de, len })
+                Ok(Accessor {
+                    de,
+                    len,
+                    last_key: None,
+                })
             }
         }
     }
 
     #[inline]
-    fn map(de: &'a mut Deserializer<R>) -> Result<Accessor<'a, R>, DecodeError<R::Error>> {
+    fn map(de: &'a mut Deserializer<R>) -> Result<Accessor<'de, 'a, R>, DecodeError<R::Error>> {
         let name = "map";
         let head = peek_one(name, &mut de.reader)?;
         match types::Map::len(&mut de.reader)? {
             None => Err(DecodeError::IndefiniteSize),
             Some(len) => {
                 check_minimal(name, head, len as u64)?;
-                Ok(Accessor { de, len })
+                Ok(Accessor {
+                    de,
+                    len,
+                    last_key: None,
+                })
             }
         }
     }
 }
 
-impl<'de, R> de::SeqAccess<'de> for Accessor<'_, R>
+impl<'de, R> de::SeqAccess<'de> for Accessor<'de, '_, R>
 where
     R: dec::Read<'de>,
 {
@@ -762,7 +776,7 @@ where
     }
 }
 
-impl<'de, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'_, R> {
+impl<'de, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'de, '_, R> {
     type Error = DecodeError<R::Error>;
 
     #[inline]
@@ -777,8 +791,24 @@ impl<'de, R: dec::Read<'de>> de::MapAccess<'de> for Accessor<'_, R> {
             if dec::if_major(byte) != major::STRING {
                 return Err(DecodeError::Mismatch { name, found: byte });
             }
+
+            let key = <Cow<str>>::decode(&mut self.de.reader)?;
+            check_minimal(name, byte, key.len() as u64)?;
+            #[cfg(not(feature = "less-strict-decoding"))]
+            {
+                if let Some(last_key) = &self.last_key {
+                    if dagcbor_key_cmp(last_key, &key) != Ordering::Less {
+                        return Err(DecodeError::UnorderedKey);
+                    }
+                }
+                // Cloning a borrowed `Cow` just copies the slice reference, so the common
+                // `from_slice` path stays allocation-free. Only `from_reader`, which already owns
+                // the decoded bytes, actually copies here.
+                self.last_key = Some(key.clone());
+            }
+
             self.len -= 1;
-            Ok(Some(seed.deserialize(&mut *self.de)?))
+            seed.deserialize(key.into_deserializer()).map(Some)
         } else {
             Ok(None)
         }
@@ -966,6 +996,15 @@ impl<'de, 'a, R: dec::Read<'de>> de::Deserializer<'de> for &'a mut CidDeserializ
 #[inline]
 pub fn is_indefinite(byte: u8) -> bool {
     byte & marker::START == marker::START
+}
+
+/// Compares two DAG-CBOR map keys to determine their required ordering.
+///
+/// DAG-CBOR sorts map keys low-to-high by length first, and then bytewise.
+#[cfg(not(feature = "less-strict-decoding"))]
+#[inline]
+fn dagcbor_key_cmp(a: &str, b: &str) -> Ordering {
+    a.len().cmp(&b.len()).then_with(|| a.cmp(b))
 }
 
 /// Checks that a CBOR head was minimally encoded.
