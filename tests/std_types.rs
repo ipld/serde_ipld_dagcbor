@@ -62,6 +62,26 @@ testcase!(test_i8_23, i8, 23, "17");
 testcase!(test_i8_24, i8, 24, "1818");
 testcase!(test_i8_neg_128, i8, -128, "387f");
 testcase!(test_u32_98745874, u32, 98745874, "1a05e2be12");
+testcase!(test_u64_max, u64, u64::MAX, "1bffffffffffffffff");
+testcase!(
+    test_u128_max_u64,
+    u128,
+    u64::MAX as u128,
+    "1bffffffffffffffff"
+);
+testcase!(
+    test_i128_max_u64,
+    i128,
+    u64::MAX as i128,
+    "1bffffffffffffffff"
+);
+testcase!(test_i64_min, i64, i64::MIN, "3b7fffffffffffffff");
+testcase!(
+    test_i128_min_cbor,
+    i128,
+    -(u64::MAX as i128 + 1),
+    "3bffffffffffffffff"
+);
 // In DAG-CBOR you cannot deserialize into f32, it's always f64.
 //testcase!(test_f32_1234_point_5, f32, 1234.5, "fb40934a0000000000");
 testcase!(test_f64_12345_point_6, f64, 12345.6, "fb40c81ccccccccccd");

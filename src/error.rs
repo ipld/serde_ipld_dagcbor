@@ -150,6 +150,13 @@ pub enum DecodeError<E> {
     TrailingData,
     /// Indefinite sized item was encountered.
     IndefiniteSize,
+    /// An integer or length was not minimally encoded.
+    NonMinimal {
+        /// Type name.
+        name: &'static str,
+        /// The non-minimal head byte.
+        found: u8,
+    },
 }
 
 impl<E> From<E> for DecodeError<E> {
