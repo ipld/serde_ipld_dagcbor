@@ -923,6 +923,39 @@ fn test_lengths_minimal_ok() {
     );
 }
 
+#[test]
+fn test_minimal_boundaries() {
+    // 23 (0x17) fits in the head byte, 24 (0x18) needs a following byte.
+    assert!(is_non_minimal(&[0x18, 0x17]));
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x18, 0x18]).unwrap(),
+        Ipld::Integer(24)
+    );
+
+    // 255 (0xff) fits in 1 byte, 256 (0x0100) needs 2.
+    assert!(is_non_minimal(&[0x19, 0x00, 0xff]));
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x19, 0x01, 0x00]).unwrap(),
+        Ipld::Integer(256)
+    );
+
+    // 65535 (0xffff) fits in 2 bytes, 65536 (0x010000) needs 4.
+    assert!(is_non_minimal(&[0x1a, 0x00, 0x00, 0xff, 0xff]));
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x1a, 0x00, 0x01, 0x00, 0x00]).unwrap(),
+        Ipld::Integer(65536)
+    );
+
+    // 4294967295 (0xffffffff) fits in 4 bytes, 4294967296 (0x0100000000) needs 8.
+    assert!(is_non_minimal(&[
+        0x1b, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff
+    ]));
+    assert_eq!(
+        de::from_slice::<Ipld>(&[0x1b, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]).unwrap(),
+        Ipld::Integer(4294967296)
+    );
+}
+
 /// DAG-CBOR permits only tag 42 (CID). The CBOR bignum tags (tag 2 for positive, tag 3 for
 /// negative), which CBOR otherwise allows for integers that don't fit in 64 bits, must be rejected.
 #[test]
