@@ -52,7 +52,6 @@ fn serde() {
     };
 
     let ipld = ipld_core::serde::to_ipld(data.clone()).unwrap();
-    println!("{:?}", ipld);
 
     let data_ser = serde_ipld_dagcbor::to_vec(&ipld).unwrap();
     let data_de_ipld: Ipld = serde_ipld_dagcbor::from_slice(&data_ser).unwrap();
@@ -97,10 +96,8 @@ fn struct_with_tuple_representation() {
     };
 
     let ipld = ipld_core::serde::to_ipld(st.clone()).unwrap();
-    println!("{:?}", ipld);
 
     let data_ser = serde_ipld_dagcbor::to_vec(&ipld).unwrap();
-    println!("{:?}", data_ser);
     let data_de_ipld: Ipld = serde_ipld_dagcbor::from_slice(&data_ser).unwrap();
 
     let strt: StructWithTupleSerialization = ipld_core::serde::from_ipld(data_de_ipld).unwrap();

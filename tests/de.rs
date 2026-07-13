@@ -289,7 +289,6 @@ fn test_option_roundtrip() {
 
     let v = to_vec(&obj1).unwrap();
     let obj2: Result<Option<u32>, _> = de::from_slice(&v[..]);
-    println!("{:?}", obj2);
 
     assert_eq!(obj1, obj2.unwrap());
 }
@@ -299,7 +298,6 @@ fn test_option_none_roundtrip() {
     let obj1 = None;
 
     let v = to_vec(&obj1).unwrap();
-    println!("{:?}", v);
     let obj2: Result<Option<u32>, _> = de::from_slice(&v[..]);
 
     assert_eq!(obj1, obj2.unwrap());

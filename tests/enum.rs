@@ -17,7 +17,6 @@ struct EnumStruct {
 fn test_enum() {
     let enum_struct = EnumStruct { e: Enum::B };
     let raw = &to_vec(&enum_struct).unwrap();
-    println!("raw enum {:?}", raw);
     let re: EnumStruct = from_slice(raw).unwrap();
     assert_eq!(enum_struct, re);
 }
@@ -60,7 +59,6 @@ fn test_data_enum() {
         x: 3,
         y: "foo".to_owned(),
     };
-    println!("{:?}", &to_vec(&data_enum_c).unwrap());
     let re_c: DataEnum = from_slice(&to_vec(&data_enum_c).unwrap()).unwrap();
     assert_eq!(data_enum_c, re_c);
 }
