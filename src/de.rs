@@ -364,6 +364,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
                     de.reader.advance(1);
                     visitor.visit_none()
                 }
+                #[cfg(feature = "less-strict-decoding")]
                 marker::F32 => de.deserialize_f32(visitor),
                 marker::F64 => de.deserialize_f64(visitor),
                 _ => Err(DecodeError::Unsupported { name, found: byte }),
@@ -403,13 +404,11 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
         let name = "f32";
         // DAG-CBOR strictly requires all floats to be encoded as f64.
         // When deserializing to f32, we need to handle f64 encoding.
-        // We also accept f32 encoding, although a strict DAG-CBOR
-        // implementation should reject it (please don't write new data
-        // with f32 encoding).
         let byte = peek_one(name, &mut self.reader)?;
         match byte {
+            // f32 encoding is not valid in strict DAG-CBOR.
+            #[cfg(feature = "less-strict-decoding")]
             marker::F32 => {
-                // Note: f32 encoding is not valid in strict DAG-CBOR.
                 let value = <f32>::decode(&mut self.reader)?;
                 // DAG-CBOR forbids NaN and Infinity.
                 if !value.is_finite() {

@@ -206,25 +206,6 @@ fn test_f32_encoding_is_f64() {
 }
 
 #[test]
-fn test_accept_f32_cbor_marker_for_compatibility() {
-    // Test that we accept CBOR f32 encoding (0xfa marker) for compatibility,
-    // even though it's not valid in strict DAG-CBOR (please don't take this
-    // test as permission to use f32 encoding in new data!).
-
-    // Manually construct CBOR with f32 encoding
-    // 0xfa = f32 marker, followed by 4 bytes of IEEE 754 single precision
-    let f32_cbor = vec![
-        0xfa, // f32 marker (not valid in strict DAG-CBOR, but we accept it)
-        0x3f, 0xc0, 0x00, 0x00, // 1.5 in IEEE 754 single precision
-    ];
-
-    // Should successfully decode for compatibility
-    let result: Result<f32, _> = from_slice(&f32_cbor);
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 1.5f32);
-}
-
-#[test]
 fn test_f32_strict_precision_rejection() {
     // Test that f64 values with more precision than f32 can represent are rejected
     // when deserializing to f32

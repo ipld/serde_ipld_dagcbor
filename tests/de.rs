@@ -185,6 +185,52 @@ fn test_float() {
 }
 
 #[test]
+fn test_float_encoded_as_non_f64_ipld() {
+    // Supporting f16 would need extra work and was never supported. Hence they even fail in less
+    // strict decoding mode.
+    let ipld_f16: Result<Ipld, _> = de::from_slice(&[0xf9, 0x3e, 0x00]);
+    assert!(matches!(
+        ipld_f16.unwrap_err(),
+        DecodeError::Unsupported { .. }
+    ));
+
+    let ipld_f32: Result<Ipld, _> = de::from_slice(&[0xfa, 0x3f, 0xc0, 0x00, 0x00]);
+    #[cfg(not(feature = "less-strict-decoding"))]
+    assert!(matches!(
+        ipld_f32.unwrap_err(),
+        DecodeError::Unsupported { .. }
+    ));
+    #[cfg(feature = "less-strict-decoding")]
+    assert_eq!(ipld_f32.unwrap(), Ipld::Float(1.5));
+}
+
+#[test]
+fn test_float_to_f32() {
+    // A value encoded as CBOR 32-bit float is only available in the less strict mode.
+    let result_f32: Result<f32, _> = de::from_slice(&[0xfa, 0x3f, 0xc0, 0x00, 0x00]);
+    #[cfg(not(feature = "less-strict-decoding"))]
+    assert!(matches!(
+        result_f32.unwrap_err(),
+        DecodeError::Mismatch {
+            name: "f32",
+            found: 250
+        }
+    ));
+    #[cfg(feature = "less-strict-decoding")]
+    assert_eq!(result_f32.unwrap(), 1.5);
+
+    // A CBOR 64-bit float value that fits into a f32 without loss can be converted.
+    let result_no_loss: Result<f32, _> =
+        de::from_slice(&[0xfb, 0x3f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    assert_eq!(result_no_loss.unwrap(), 1.5);
+
+    // A CBOR 64-bit float value that does *not* fit into a f32 without loss should always fail.
+    let result_loss: Result<f32, _> =
+        de::from_slice(&[0xfb, 0x40, 0x11, 0x21, 0xa8, 0x01, 0x86, 0x24, 0xe3]);
+    assert!(matches!(result_loss.unwrap_err(), DecodeError::Msg { .. }));
+}
+
+#[test]
 fn test_rejected_tag() {
     // Tag 42, but not minimally encoded.
     let ipld: Result<Ipld, _> = de::from_slice(&[0xd9, 0x00, 0x2a, 0x43, 0x00, 0x01, 0x02]);
