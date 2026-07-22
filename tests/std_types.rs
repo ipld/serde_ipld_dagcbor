@@ -175,7 +175,6 @@ fn test_f32_roundtrip() {
     // Test various f32 values
     let test_values = vec![
         0.0f32,
-        -0.0f32,
         1.0f32,
         -1.0f32,
         1.5f32,
@@ -245,13 +244,12 @@ fn test_f32_strict_precision_rejection() {
     assert!(decoded.is_ok());
     assert_eq!(decoded.unwrap(), original);
 
-    // Negative zero should preserve sign bit and work
+    // Negative zero is encoded as positive zero (0x0000000000000000).
     let neg_zero_f64 = -0.0f64;
     let encoded = to_vec(&neg_zero_f64).expect("encoding should succeed");
+    assert_eq!(encoded, to_binary("fb0000000000000000"));
     let result: Result<f32, _> = from_slice(&encoded);
     assert!(result.is_ok());
     let decoded_f32 = result.unwrap();
-    assert_eq!(decoded_f32, -0.0f32);
-    // Check that sign bit is preserved
-    assert_eq!(decoded_f32.to_bits(), (-0.0f32).to_bits());
+    assert_eq!(decoded_f32.to_bits(), (0.0f32).to_bits());
 }

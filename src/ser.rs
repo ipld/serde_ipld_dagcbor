@@ -137,6 +137,8 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
                 "Float must be a finite number, not Infinity or NaN".into(),
             ))
         } else {
+            // -0.0 and 0.0 are equal, always encode as 0.0 (0x0000000000000000).
+            let v = if v == -0.0 { 0.0 } else { v };
             v.encode(&mut self.writer)?;
             Ok(())
         }

@@ -57,6 +57,18 @@ fn test_f32() {
 }
 
 #[test]
+fn test_negative_zero() {
+    // -0.0 and 0.0 are equal, -0.0 is encoded as 0.0 (0x0000000000000000).
+    let neg = to_vec(&-0.0f64).unwrap();
+    assert_eq!(neg, b"\xfb\x00\x00\x00\x00\x00\x00\x00\x00");
+    assert_eq!(neg, to_vec(&0.0f64).unwrap());
+
+    // The same is true when serializing an f32.
+    let neg_f32 = to_vec(&-0.0f32).unwrap();
+    assert_eq!(neg_f32, b"\xfb\x00\x00\x00\x00\x00\x00\x00\x00");
+}
+
+#[test]
 fn test_infinity() {
     let vec = to_vec(&f32::INFINITY);
     assert!(vec.is_err(), "Only finite numbers are supported.");
