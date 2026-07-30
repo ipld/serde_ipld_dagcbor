@@ -425,6 +425,12 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
                     return Err(DecodeError::Mismatch { name, found: byte });
                 }
 
+                // DAG-CBOR requires -0.0 to be encoded as 0.0.
+                #[cfg(not(feature = "less-strict-decoding"))]
+                if value == 0.0 && value.is_sign_negative() {
+                    return Err(DecodeError::Mismatch { name, found: byte });
+                }
+
                 let f32_value = value as f32;
 
                 // Check if conversion causes overflow to infinity
@@ -459,6 +465,11 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
         let value = <f64>::decode(&mut self.reader)?;
         // DAG-CBOR forbids NaN and Infinity.
         if !value.is_finite() {
+            return Err(DecodeError::Mismatch { name, found: byte });
+        }
+        // DAG-CBOR requires -0.0 to be encoded as 0.0.
+        #[cfg(not(feature = "less-strict-decoding"))]
+        if value == 0.0 && value.is_sign_negative() {
             return Err(DecodeError::Mismatch { name, found: byte });
         }
         visitor.visit_f64(value)

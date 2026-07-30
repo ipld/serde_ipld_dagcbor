@@ -185,6 +185,37 @@ fn test_float() {
 }
 
 #[test]
+fn test_float_negative_zero() {
+    // -0.0 (0x8000000000000000) must be encoded as 0.0, so decoding it is only allowed in the less
+    // strict mode.
+    let bytes = [0xfb, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+
+    let result: Result<f64, _> = de::from_slice(&bytes);
+    #[cfg(not(feature = "less-strict-decoding"))]
+    assert!(matches!(
+        result.unwrap_err(),
+        DecodeError::Mismatch {
+            name: "f64",
+            found: 251
+        }
+    ));
+    #[cfg(feature = "less-strict-decoding")]
+    assert_eq!(result.unwrap().to_bits(), (-0.0f64).to_bits());
+
+    let result_f32: Result<f32, _> = de::from_slice(&bytes);
+    #[cfg(not(feature = "less-strict-decoding"))]
+    assert!(matches!(
+        result_f32.unwrap_err(),
+        DecodeError::Mismatch {
+            name: "f32",
+            found: 251
+        }
+    ));
+    #[cfg(feature = "less-strict-decoding")]
+    assert_eq!(result_f32.unwrap().to_bits(), (-0.0f32).to_bits());
+}
+
+#[test]
 fn test_float_encoded_as_non_f64_ipld() {
     // Supporting f16 would need extra work and was never supported. Hence they even fail in less
     // strict decoding mode.
