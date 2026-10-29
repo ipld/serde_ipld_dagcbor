@@ -261,6 +261,148 @@ fn test_float_to_f32() {
     assert!(matches!(result_loss.unwrap_err(), DecodeError::Msg { .. }));
 }
 
+#[cfg(feature = "_experimental-integral-floats")]
+#[test]
+fn test_integral_floats() {
+    // [1.0, 4]: an f64 followed by an integer.
+    let mixed = [
+        0x82, 0xfb, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04,
+    ];
+    let result: Result<Vec<f64>, _> = de::from_slice(&mixed);
+    assert!(matches!(
+        result.unwrap_err(),
+        DecodeError::Mismatch {
+            name: "f64",
+            found: 4
+        }
+    ));
+    let result_f32: Result<Vec<f32>, _> = de::from_slice(&mixed);
+    assert!(matches!(
+        result_f32.unwrap_err(),
+        DecodeError::Mismatch {
+            name: "f32",
+            found: 4
+        }
+    ));
+
+    let result: Vec<f64> = de::from_slice_integral_floats(&mixed).unwrap();
+    assert_eq!(result, vec![1.0, 4.0]);
+    let result_f32: Vec<f32> = de::from_slice_integral_floats(&mixed).unwrap();
+    assert_eq!(result_f32, vec![1.0, 4.0]);
+    #[cfg(feature = "std")]
+    {
+        let result_reader: Vec<f64> = de::from_reader_integral_floats(&mixed[..]).unwrap();
+        assert_eq!(result_reader, vec![1.0, 4.0]);
+    }
+
+    // Untyped decoding keeps integers as integers.
+    let ipld: Ipld = de::from_slice_integral_floats(&mixed).unwrap();
+    assert_eq!(ipld, Ipld::List(vec![Ipld::Float(1.0), Ipld::Integer(4)]));
+
+    // The option can be turned off again.
+    let mut deserializer = de::Deserializer::from_slice(&[0x04])
+        .integral_floats(true)
+        .integral_floats(false);
+    assert!(matches!(
+        f64::deserialize(&mut deserializer).unwrap_err(),
+        DecodeError::Mismatch {
+            name: "f64",
+            found: 4
+        }
+    ));
+}
+
+#[cfg(feature = "_experimental-integral-floats")]
+#[test]
+fn test_integral_floats_precision() {
+    // 0 (0x00), 23 (0x17), 24 (0x1818), -1 (0x20), -25 (0x3818)
+    for (bytes, expected) in [
+        (&[0x00][..], 0.0),
+        (&[0x17], 23.0),
+        (&[0x18, 0x18], 24.0),
+        (&[0x20], -1.0),
+        (&[0x38, 0x18], -25.0),
+    ] {
+        assert_eq!(
+            de::from_slice_integral_floats::<f64>(bytes).unwrap(),
+            expected
+        );
+        assert_eq!(
+            de::from_slice_integral_floats::<f32>(bytes).unwrap(),
+            expected as f32
+        );
+    }
+
+    // Large values that are exactly representable: 2^53 (0x1b0020000000000000) and -2^63
+    // (0x3b7fffffffffffffff).
+    let two_53 = [0x1b, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+    assert_eq!(
+        de::from_slice_integral_floats::<f64>(&two_53).unwrap(),
+        9007199254740992.0
+    );
+    let i64_min = [0x3b, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
+    assert_eq!(
+        de::from_slice_integral_floats::<f64>(&i64_min).unwrap(),
+        -9223372036854775808.0
+    );
+
+    // Integers below -2^63 are rejected, even if exactly representable: -2^63 - 2048
+    // (0x3b80000000000007ff) and -2^64 (0x3bffffffffffffffff).
+    for bytes in [
+        &[0x3b, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0xff],
+        &[0x3b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+    ] {
+        let result: Result<f64, _> = de::from_slice_integral_floats(bytes);
+        assert!(matches!(result.unwrap_err(), DecodeError::Msg { .. }));
+    }
+
+    // Integers that lose precision as a float are rejected: 2^53 + 1 (0x1b0020000000000001) and
+    // `u64::MAX` (0x1bffffffffffffffff).
+    for bytes in [
+        &[0x1b, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01],
+        &[0x1b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+    ] {
+        let result: Result<f64, _> = de::from_slice_integral_floats(bytes);
+        assert!(matches!(result.unwrap_err(), DecodeError::Msg { .. }));
+    }
+
+    // f32 has 24 bits of precision: 2^24 (0x1a01000000) fits, 2^24 + 1 (0x1a01000001) doesn't.
+    assert_eq!(
+        de::from_slice_integral_floats::<f32>(&[0x1a, 0x01, 0x00, 0x00, 0x00]).unwrap(),
+        16777216.0
+    );
+    let result: Result<f32, _> = de::from_slice_integral_floats(&[0x1a, 0x01, 0x00, 0x00, 0x01]);
+    assert!(matches!(result.unwrap_err(), DecodeError::Msg { .. }));
+
+    // Non-minimal integers are rejected when decoding into floats too: 1 encoded with a following
+    // byte (0x1801).
+    let result: Result<f64, _> = de::from_slice_integral_floats(&[0x18, 0x01]);
+    assert!(matches!(
+        result.unwrap_err(),
+        DecodeError::NonMinimal {
+            name: "f64",
+            found: 0x18
+        }
+    ));
+    // The same for negative integers: -1 encoded with a following byte (0x3800).
+    let result: Result<f64, _> = de::from_slice_integral_floats(&[0x38, 0x00]);
+    assert!(matches!(
+        result.unwrap_err(),
+        DecodeError::NonMinimal {
+            name: "f64",
+            found: 0x38
+        }
+    ));
+
+    // -2^24 (0x3a00ffffff) fits into f32, -2^24 - 1 (0x3a01000000) doesn't.
+    assert_eq!(
+        de::from_slice_integral_floats::<f32>(&[0x3a, 0x00, 0xff, 0xff, 0xff]).unwrap(),
+        -16777216.0
+    );
+    let result: Result<f32, _> = de::from_slice_integral_floats(&[0x3a, 0x01, 0x00, 0x00, 0x00]);
+    assert!(matches!(result.unwrap_err(), DecodeError::Msg { .. }));
+}
+
 #[test]
 fn test_rejected_tag() {
     // Tag 42, but not minimally encoded.
@@ -1143,4 +1285,143 @@ fn test_struct_field_order_differs_from_keys() {
     ])
     .unwrap();
     assert_eq!(result, Foo { name: 1, id: 0 });
+}
+
+#[cfg(feature = "_experimental-integral-floats")]
+fn is_precision_error(error: &DecodeError<Infallible>) -> bool {
+    matches!(error, DecodeError::Msg(msg) if msg.contains("precision"))
+}
+
+#[cfg(feature = "_experimental-integral-floats")]
+fn is_untagged_error(error: &DecodeError<Infallible>) -> bool {
+    matches!(error, DecodeError::Msg(msg) if msg.starts_with("data did not match any variant"))
+}
+
+#[cfg(feature = "_experimental-integral-floats")]
+#[test]
+fn test_lossless_floats() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Inner {
+        #[serde(deserialize_with = "de::lossless_f32")]
+        a: f32,
+        #[serde(deserialize_with = "de::lossless_f64")]
+        b: f64,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Flattened {
+        #[serde(flatten)]
+        inner: Inner,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    #[serde(untagged)]
+    enum Untagged {
+        Float(#[serde(deserialize_with = "de::lossless_f32")] f32),
+        String(String),
+    }
+
+    // {"a": <a>, "b": 1.5}
+    let map = |a: &[u8]| {
+        let mut bytes = vec![0xa2, 0x61, b'a'];
+        bytes.extend_from_slice(a);
+        bytes.extend_from_slice(&[
+            0x61, b'b', 0xfb, 0x3f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]);
+        bytes
+    };
+    let expected = |a| Flattened {
+        inner: Inner { a, b: 1.5 },
+    };
+
+    // 1.5 is exact, 1.1 isn't as f32.
+    let exact = [0xfb, 0x3f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+    let inexact = [0xfb, 0x3f, 0xf1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9a];
+    assert_eq!(
+        de::from_slice::<Flattened>(&map(&exact)).unwrap(),
+        expected(1.5)
+    );
+    assert!(is_precision_error(
+        &de::from_slice::<Flattened>(&map(&inexact)).unwrap_err()
+    ));
+    assert_eq!(
+        de::from_slice::<Untagged>(&exact).unwrap(),
+        Untagged::Float(1.5)
+    );
+    assert!(is_untagged_error(
+        &de::from_slice::<Untagged>(&inexact).unwrap_err()
+    ));
+
+    // When buffered, integers are accepted if they are exact: 2^24 (0x1a01000000) is exact as f32,
+    // 2^24 + 1 (0x1a01000001) isn't.
+    let int_exact = [0x1a, 0x01, 0x00, 0x00, 0x00];
+    let int_inexact = [0x1a, 0x01, 0x00, 0x00, 0x01];
+    assert_eq!(
+        de::from_slice::<Flattened>(&map(&int_exact)).unwrap(),
+        expected(16777216.0)
+    );
+    assert_eq!(
+        de::from_slice::<Untagged>(&int_exact).unwrap(),
+        Untagged::Float(16777216.0)
+    );
+    assert!(is_precision_error(
+        &de::from_slice::<Flattened>(&map(&int_inexact)).unwrap_err()
+    ));
+    assert!(is_untagged_error(
+        &de::from_slice::<Untagged>(&int_inexact).unwrap_err()
+    ));
+
+    // Without buffering it behaves like a plain float.
+    assert!(matches!(
+        de::from_slice::<Inner>(&map(&int_exact)).unwrap_err(),
+        DecodeError::Mismatch {
+            name: "f32",
+            found: 0x1a
+        }
+    ));
+    assert!(is_precision_error(
+        &de::from_slice::<Inner>(&map(&inexact)).unwrap_err()
+    ));
+    assert_eq!(
+        de::from_slice_integral_floats::<Inner>(&map(&int_exact)).unwrap(),
+        Inner {
+            a: 16777216.0,
+            b: 1.5
+        }
+    );
+    assert!(is_precision_error(
+        &de::from_slice_integral_floats::<Inner>(&map(&int_inexact)).unwrap_err()
+    ));
+}
+
+#[cfg(feature = "_experimental-integral-floats")]
+#[test]
+fn test_lossless_floats_integers() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    #[serde(untagged)]
+    enum Untagged {
+        Float(#[serde(deserialize_with = "de::lossless_f64")] f64),
+        String(String),
+    }
+
+    // -1 (0x20), 2^53 (0x1b0020000000000000) and -2^63 (0x3b7fffffffffffffff) are exact.
+    assert_eq!(
+        de::from_slice::<Untagged>(&[0x20]).unwrap(),
+        Untagged::Float(-1.0)
+    );
+    assert_eq!(
+        de::from_slice::<Untagged>(&[0x1b, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+            .unwrap(),
+        Untagged::Float(9007199254740992.0)
+    );
+    assert_eq!(
+        de::from_slice::<Untagged>(&[0x3b, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])
+            .unwrap(),
+        Untagged::Float(-9223372036854775808.0)
+    );
+    // 2^53 + 1 (0x1b0020000000000001) isn't.
+    assert!(is_untagged_error(
+        &de::from_slice::<Untagged>(&[0x1b, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01])
+            .unwrap_err()
+    ));
 }

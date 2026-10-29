@@ -37,3 +37,9 @@ std = ["cbor4ii/use_std", "ipld-core/std", "serde/std", "serde_bytes/std"]
 no-cid-as-bytes = []
 # Don't be as strict on decoding data as on the encoding side.
 less-strict-decoding = []
+# Options to decode CBOR integers into floats and to encode floats with an integral value as
+# integers.
+_experimental-integral-floats = []
+
+[package.metadata.docs.rs]
+features = ["_experimental-integral-floats"]
