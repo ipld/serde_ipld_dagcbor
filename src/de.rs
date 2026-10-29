@@ -17,9 +17,14 @@ use serde::de::{self, Visitor};
 
 use crate::cbor4ii_nonpub::{peek_one, pull_one};
 use crate::error::DecodeError;
+#[cfg(feature = "_experimental-integral-floats")]
+use crate::integral_floats::decode_int_as_float;
 use crate::CBOR_TAGS_CID;
 #[cfg(feature = "std")]
 use cbor4ii::core::utils::IoReader;
+
+#[cfg(feature = "_experimental-integral-floats")]
+pub use crate::integral_floats::{lossless_f32, lossless_f64};
 
 /// Decodes a value from CBOR data in a slice.
 ///
@@ -48,6 +53,24 @@ where
 {
     let reader = SliceReader::new(buf);
     let mut deserializer = Deserializer::from_reader(reader);
+    let value = serde::Deserialize::deserialize(&mut deserializer)?;
+    deserializer.end()?;
+    Ok(value)
+}
+
+/// Decodes a value from CBOR data in a slice, allowing integers to be decoded into floats.
+///
+/// See [`Deserializer::integral_floats`] for details.
+///
+/// Requires the `_experimental-integral-floats` feature, which may change or be removed in a
+/// non-breaking release.
+#[cfg(feature = "_experimental-integral-floats")]
+pub fn from_slice_integral_floats<'a, T>(buf: &'a [u8]) -> Result<T, DecodeError<Infallible>>
+where
+    T: de::Deserialize<'a>,
+{
+    let reader = SliceReader::new(buf);
+    let mut deserializer = Deserializer::from_reader(reader).integral_floats(true);
     let value = serde::Deserialize::deserialize(&mut deserializer)?;
     deserializer.end()?;
     Ok(value)
@@ -82,6 +105,25 @@ where
 {
     let reader = IoReader::new(reader);
     let mut deserializer = Deserializer::from_reader(reader);
+    let value = serde::Deserialize::deserialize(&mut deserializer)?;
+    deserializer.end()?;
+    Ok(value)
+}
+
+/// Decodes a value from CBOR data in a reader, allowing integers to be decoded into floats.
+///
+/// See [`Deserializer::integral_floats`] for details.
+///
+/// Requires the `std` and `_experimental-integral-floats` features, the latter may change or be
+/// removed in a non-breaking release.
+#[cfg(all(feature = "std", feature = "_experimental-integral-floats"))]
+pub fn from_reader_integral_floats<T, R>(reader: R) -> Result<T, DecodeError<std::io::Error>>
+where
+    T: de::DeserializeOwned,
+    R: std::io::BufRead,
+{
+    let reader = IoReader::new(reader);
+    let mut deserializer = Deserializer::from_reader(reader).integral_floats(true);
     let value = serde::Deserialize::deserialize(&mut deserializer)?;
     deserializer.end()?;
     Ok(value)
@@ -164,12 +206,35 @@ where
 #[derive(Debug)]
 pub struct Deserializer<R> {
     reader: R,
+    #[cfg(feature = "_experimental-integral-floats")]
+    integral_floats: bool,
 }
 
 impl<R> Deserializer<R> {
     /// Constructs a `Deserializer` which reads from a `Read`er.
     pub fn from_reader(reader: R) -> Deserializer<R> {
-        Deserializer { reader }
+        Deserializer {
+            reader,
+            #[cfg(feature = "_experimental-integral-floats")]
+            integral_floats: false,
+        }
+    }
+
+    /// Allows decoding integers into `f32`/`f64` if they are exactly representable.
+    ///
+    /// Integers decoded into other types, e.g. `i64` or `Ipld`, stay integers.
+    ///
+    /// Some encoders write floats with an integral value as integers.
+    ///
+    /// It has no effect when serde buffers the value (e.g. for untagged enums or
+    /// `#[serde(flatten)]`), use [`lossless_f32`]/[`lossless_f64`] for those fields.
+    ///
+    /// Requires the `_experimental-integral-floats` feature, which may change or be removed in
+    /// a non-breaking release.
+    #[cfg(feature = "_experimental-integral-floats")]
+    pub fn integral_floats(mut self, enabled: bool) -> Self {
+        self.integral_floats = enabled;
+        self
     }
 }
 
@@ -186,9 +251,7 @@ impl<'de, R: dec::Read<'de>> Deserializer<R> {
 impl<'a> Deserializer<SliceReader<'a>> {
     /// Constructs a `Deserializer` that reads from a slice.
     pub fn from_slice(buf: &'a [u8]) -> Self {
-        Deserializer {
-            reader: SliceReader::new(buf),
-        }
+        Deserializer::from_reader(SliceReader::new(buf))
     }
 }
 
@@ -336,10 +399,7 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
             major::NEGATIVE => {
                 // CBOR supports negative integers up to -2^64 which is less than i64::MIN. Only
                 // treat it as i128, if it is outside the i64 range.
-                let value = i128::decode(&mut de.reader)?;
-                // Enforce minimal encoding; the negative head's argument is `-1 - value`, which in
-                // two's complement is the bitwise complement `!value`.
-                check_minimal(name, byte, !value as u64)?;
+                let value = decode_minimal_i128(name, byte, &mut de.reader)?;
                 match i64::try_from(value) {
                     Ok(value_i64) => visitor.visit_i64(value_i64),
                     Err(_) => visitor.visit_i128(value),
@@ -451,6 +511,12 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
 
                 visitor.visit_f32(f32_value)
             }
+            #[cfg(feature = "_experimental-integral-floats")]
+            // Unsigned (0x00..=0x1b) and negative (0x20..=0x3b) integers.
+            0x00..=0x1b | 0x20..=0x3b if self.integral_floats => {
+                let value = decode_int_as_float::<_, f32>(name, byte, &mut self.reader)?;
+                visitor.visit_f32(value)
+            }
             _ => Err(DecodeError::Mismatch { name, found: byte }),
         }
     }
@@ -462,17 +528,28 @@ impl<'de, R: dec::Read<'de>> serde::Deserializer<'de> for &mut Deserializer<R> {
     {
         let name = "f64";
         let byte = peek_one(name, &mut self.reader)?;
-        let value = <f64>::decode(&mut self.reader)?;
-        // DAG-CBOR forbids NaN and Infinity.
-        if !value.is_finite() {
-            return Err(DecodeError::Mismatch { name, found: byte });
+        match byte {
+            marker::F64 => {
+                let value = <f64>::decode(&mut self.reader)?;
+                // DAG-CBOR forbids NaN and Infinity.
+                if !value.is_finite() {
+                    return Err(DecodeError::Mismatch { name, found: byte });
+                }
+                // DAG-CBOR requires -0.0 to be encoded as 0.0.
+                #[cfg(not(feature = "less-strict-decoding"))]
+                if value == 0.0 && value.is_sign_negative() {
+                    return Err(DecodeError::Mismatch { name, found: byte });
+                }
+                visitor.visit_f64(value)
+            }
+            #[cfg(feature = "_experimental-integral-floats")]
+            // Unsigned (0x00..=0x1b) and negative (0x20..=0x3b) integers.
+            0x00..=0x1b | 0x20..=0x3b if self.integral_floats => {
+                let value = decode_int_as_float::<_, f64>(name, byte, &mut self.reader)?;
+                visitor.visit_f64(value)
+            }
+            _ => Err(DecodeError::Mismatch { name, found: byte }),
         }
-        // DAG-CBOR requires -0.0 to be encoded as 0.0.
-        #[cfg(not(feature = "less-strict-decoding"))]
-        if value == 0.0 && value.is_sign_negative() {
-            return Err(DecodeError::Mismatch { name, found: byte });
-        }
-        visitor.visit_f64(value)
     }
 
     #[inline]
@@ -1042,4 +1119,21 @@ fn check_minimal<E>(name: &'static str, head: u8, arg: u64) -> Result<(), Decode
     } else {
         Err(DecodeError::NonMinimal { name, found: head })
     }
+}
+
+/// Decodes a minimally encoded integer (major type 0 or 1).
+pub(crate) fn decode_minimal_i128<'de, R: dec::Read<'de>>(
+    name: &'static str,
+    head: u8,
+    reader: &mut R,
+) -> Result<i128, DecodeError<R::Error>> {
+    let value = i128::decode(reader)?;
+    // For a negative head the argument is `-1 - value`, which in two's complement is `!value`.
+    match dec::if_major(head) {
+        major::UNSIGNED => check_minimal(name, head, value as u64)?,
+        major::NEGATIVE => check_minimal(name, head, !value as u64)?,
+        // cbor4ii also decodes CBOR big integers (tags 2 and 3) as `i128`. Reject those.
+        _ => return Err(DecodeError::Unsupported { name, found: head }),
+    }
+    Ok(value)
 }

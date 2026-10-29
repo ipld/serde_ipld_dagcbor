@@ -75,6 +75,20 @@ Features
 The decoding of data is as strict as possible. When enabling this feature, it's a bit less strict. If you run into decoding errors for your not fully DAG-CBOR compliant data, try this feature flag first.
 
 
+### `_experimental-integral-floats`
+
+This feature is experimental, it may change or be removed in a non-breaking release.
+
+Some encoders write floats with an integral value as an integer. This feature adds options to handle such data, both are off by default:
+
+ - `Deserializer::integral_floats(true)` allows decoding CBOR integers into `f32`/`f64` fields, if they are exactly representable. Integers decoded into other types, e.g. `i64` or `Ipld`, stay integers. Exactly representable is the case for all integers up to 2^24 (`f32`) or 2^53 (`f64`) in absolute value. Larger integers are only representable if they are a multiple of a large enough power of two, e.g. 2^53 + 2 is representable as `f64`, 2^53 + 1 isn't.
+ - `Serializer::integral_floats(true)` encodes floats with an integral value that fits into `u64`/`i64` as integers, e.g. `4.0` is encoded as `4`. Hence an `Ipld::Float(4.0)` is decoded as `Ipld::Integer(4)`.
+
+`from_slice`, `to_vec` etc. always use the defaults, so enabling the feature doesn't change how existing code decodes or encodes. To enable the options there are `from_slice_integral_floats`/`from_reader_integral_floats` in `de` and `to_vec_integral_floats`/`to_writer_integral_floats` in `ser`.
+
+When serde buffers the value (e.g. for untagged enums or `#[serde(flatten)]`), serde converts integers into floats itself, which may lose precision. Use `de::lossless_f32`/`de::lossless_f64` with `#[serde(deserialize_with = "…")]` for those fields.
+
+
 ### `no-cid-as-bytes`
 
 Sometimes it is desired that a CID is not accidentally deserialized into bytes. This can happen because the intermediate serde data model does not retain enough information to be able to differentiate between a bytes container and a CID container when there is a conflicting choice to be made, as in the case of some enum cases. The `no-cid-as-bytes` feature can be enabled in order to error at runtime in such cases.

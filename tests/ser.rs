@@ -69,6 +69,74 @@ fn test_negative_zero() {
 }
 
 #[test]
+fn test_integral_floats() {
+    // Floats are kept by default.
+    assert_eq!(to_vec(&4.0f64).unwrap()[0], 0xfb);
+
+    #[cfg(feature = "_experimental-integral-floats")]
+    {
+        use serde_ipld_dagcbor::ser::to_vec_integral_floats;
+
+        // 4.0 (0x04), -1.0 (0x20), 4.0f32 (0x04), -0.0 (0x00), 2^63 (0x1b8000000000000000),
+        // -2^63 (0x3b7fffffffffffffff), 2^64 - 2048 (0x1bfffffffffffff800)
+        assert_eq!(to_vec_integral_floats(&4.0f64).unwrap(), b"\x04");
+        assert_eq!(to_vec_integral_floats(&-1.0f64).unwrap(), b"\x20");
+        assert_eq!(to_vec_integral_floats(&4.0f32).unwrap(), b"\x04");
+        assert_eq!(to_vec_integral_floats(&-0.0f64).unwrap(), b"\x00");
+        assert_eq!(
+            to_vec_integral_floats(&9223372036854775808.0f64).unwrap(),
+            b"\x1b\x80\x00\x00\x00\x00\x00\x00\x00"
+        );
+        assert_eq!(
+            to_vec_integral_floats(&-9223372036854775808.0f64).unwrap(),
+            b"\x3b\x7f\xff\xff\xff\xff\xff\xff\xff"
+        );
+        assert_eq!(
+            to_vec_integral_floats(&18446744073709549568.0f64).unwrap(),
+            b"\x1b\xff\xff\xff\xff\xff\xff\xf8\x00"
+        );
+
+        // Values that don't fit into `u64`/`i64` stay floats: 2^64 and the next float below
+        // -2^63 (-2^63 - 2048).
+        assert_eq!(
+            to_vec_integral_floats(&18446744073709551616.0f64).unwrap(),
+            b"\xfb\x43\xf0\x00\x00\x00\x00\x00\x00"
+        );
+        assert_eq!(
+            to_vec_integral_floats(&-9223372036854777856.0f64).unwrap(),
+            b"\xfb\xc3\xe0\x00\x00\x00\x00\x00\x01"
+        );
+
+        // Non-integral values stay floats.
+        assert_eq!(to_vec_integral_floats(&1.5f64).unwrap()[0], 0xfb);
+
+        #[cfg(feature = "std")]
+        {
+            let mut writer = Vec::new();
+            serde_ipld_dagcbor::ser::to_writer_integral_floats(&mut writer, &4.0f64).unwrap();
+            assert_eq!(writer, b"\x04");
+        }
+
+        // The option can be turned off again.
+        let mut serializer = Serializer::new(BufWriter::new(Vec::new()))
+            .integral_floats(true)
+            .integral_floats(false);
+        serde::Serialize::serialize(&4.0f64, &mut serializer).unwrap();
+        assert_eq!(serializer.into_inner().into_inner()[0], 0xfb);
+
+        // The option also applies within maps and sequences of unknown length: {"a": 4.0} and
+        // [4.0].
+        let map = BTreeMap::from([("a", 4.0f64)]);
+        assert_eq!(to_vec_integral_floats(&map).unwrap(), b"\xa1\x61\x61\x04");
+        // The filter hides the length.
+        let mut serializer = Serializer::new(BufWriter::new(Vec::new())).integral_floats(true);
+        serde::ser::Serializer::collect_seq(&mut serializer, iter::once(4.0f64).filter(|_| true))
+            .unwrap();
+        assert_eq!(serializer.into_inner().into_inner(), b"\x81\x04");
+    }
+}
+
+#[test]
 fn test_infinity() {
     let vec = to_vec(&f32::INFINITY);
     assert!(vec.is_err(), "Only finite numbers are supported.");

@@ -29,6 +29,23 @@ where
     Ok(serializer.into_inner().into_inner())
 }
 
+/// Serializes a value to a vector, with floats with an integral value being encoded as integers.
+///
+/// See [`Serializer::integral_floats`] for details.
+///
+/// Requires the `_experimental-integral-floats` feature, which may change or be removed in a
+/// non-breaking release.
+#[cfg(feature = "_experimental-integral-floats")]
+pub fn to_vec_integral_floats<T>(value: &T) -> Result<Vec<u8>, EncodeError<TryReserveError>>
+where
+    T: Serialize + ?Sized,
+{
+    let writer = BufWriter::new(Vec::new());
+    let mut serializer = Serializer::new(writer).integral_floats(true);
+    value.serialize(&mut serializer)?;
+    Ok(serializer.into_inner().into_inner())
+}
+
 /// Serializes a value to a writer.
 #[cfg(feature = "std")]
 pub fn to_writer<W, T>(writer: W, value: &T) -> Result<(), EncodeError<std::io::Error>>
@@ -40,15 +57,61 @@ where
     value.serialize(&mut serializer)
 }
 
+/// Serializes a value to a writer, with floats with an integral value being encoded as integers.
+///
+/// See [`Serializer::integral_floats`] for details.
+///
+/// Requires the `std` and `_experimental-integral-floats` features, the latter may change or be
+/// removed in a non-breaking release.
+#[cfg(all(feature = "std", feature = "_experimental-integral-floats"))]
+pub fn to_writer_integral_floats<W, T>(
+    writer: W,
+    value: &T,
+) -> Result<(), EncodeError<std::io::Error>>
+where
+    W: std::io::Write,
+    T: Serialize,
+{
+    let mut serializer = Serializer::new(IoWriter::new(writer)).integral_floats(true);
+    value.serialize(&mut serializer)
+}
+
 /// A structure for serializing Rust values to DAG-CBOR.
 pub struct Serializer<W> {
     writer: W,
+    #[cfg(feature = "_experimental-integral-floats")]
+    integral_floats: bool,
 }
 
 impl<W> Serializer<W> {
     /// Creates a new CBOR serializer.
     pub fn new(writer: W) -> Serializer<W> {
-        Serializer { writer }
+        Serializer {
+            writer,
+            #[cfg(feature = "_experimental-integral-floats")]
+            integral_floats: false,
+        }
+    }
+
+    /// Encodes floats with an integral value that fits into `u64`/`i64` as integers.
+    ///
+    /// Some encoders write floats that way, use this to produce the same bytes.
+    ///
+    /// Requires the `_experimental-integral-floats` feature, which may change or be removed in
+    /// a non-breaking release.
+    #[cfg(feature = "_experimental-integral-floats")]
+    pub fn integral_floats(mut self, enabled: bool) -> Self {
+        self.integral_floats = enabled;
+        self
+    }
+
+    /// Creates a serializer for another writer with the same options.
+    fn with_writer<V>(&self, writer: V) -> Serializer<V> {
+        Serializer {
+            writer,
+            #[cfg(feature = "_experimental-integral-floats")]
+            integral_floats: self.integral_floats,
+        }
     }
 
     /// Returns the underlying writer.
@@ -139,6 +202,21 @@ impl<'a, W: enc::Write> serde::Serializer for &'a mut Serializer<W> {
         } else {
             // -0.0 and 0.0 are equal, always encode as 0.0 (0x0000000000000000).
             let v = if v == -0.0 { 0.0 } else { v };
+
+            // Floats with an integral value that fits into `u64`/`i64` are encoded as integers.
+            #[cfg(feature = "_experimental-integral-floats")]
+            if self.integral_floats {
+                let int = v as i128;
+                if int as f64 == v {
+                    if let Ok(int) = u64::try_from(int) {
+                        return self.serialize_u64(int);
+                    }
+                    if let Ok(int) = i64::try_from(int) {
+                        return self.serialize_i64(int);
+                    }
+                }
+            }
+
             v.encode(&mut self.writer)?;
             Ok(())
         }
@@ -332,7 +410,7 @@ impl<'a, W: enc::Write> CollectSeq<'a, W> {
             types::Array::bounded(len, &mut ser.writer)?;
             None
         } else {
-            Some(Serializer::new(BufWriter::new(Vec::new())))
+            Some(ser.with_writer(BufWriter::new(Vec::new())))
         };
         Ok(Self {
             count: 0,
@@ -450,7 +528,7 @@ where
         value: &T,
     ) -> Result<(), EncodeError<W::Error>> {
         // Instantiate a new serializer, so that the buffer can be re-used.
-        let mut mem_serializer = Serializer::new(&mut self.buffer);
+        let mut mem_serializer = self.ser.with_writer(&mut self.buffer);
         if let Some(key) = maybe_key {
             key.serialize(&mut mem_serializer)
                 .map_err(|_| EncodeError::Msg("Struct key cannot be serialized.".to_string()))?;
@@ -490,7 +568,7 @@ where
     fn serialize_key<T: Serialize + ?Sized>(&mut self, key: &T) -> Result<(), Self::Error> {
         // The key needs to be add to the buffer without any further operations. Serializing the
         // value will then do the necessary flushing etc.
-        let mut mem_serializer = Serializer::new(&mut self.buffer);
+        let mut mem_serializer = self.ser.with_writer(&mut self.buffer);
         key.serialize(&mut mem_serializer)
             .map_err(|_| EncodeError::Msg("Map key cannot be serialized.".to_string()))?;
         // Map keys must be strings in DAG-CBOR.
