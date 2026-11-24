@@ -121,6 +121,8 @@ mod cbor4ii_nonpub;
 pub mod codec;
 pub mod de;
 pub mod error;
+#[cfg(feature = "_experimental-integral-floats")]
+mod integral_floats;
 pub mod ser;
 
 #[doc(inline)]

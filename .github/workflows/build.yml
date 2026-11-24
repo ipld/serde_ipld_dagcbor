@@ -40,6 +40,12 @@ jobs:
       - name: Code lint with all features
         run: cargo clippy --all-targets --workspace --all-features -- -D warnings
 
+      - name: Code lint _experimental-integral-floats feature
+        run: cargo clippy --all-targets --workspace --features _experimental-integral-floats -- -D warnings
+
+      - name: Code lint _experimental-integral-floats feature without default features
+        run: cargo clippy --all-targets --workspace --no-default-features --features _experimental-integral-floats -- -D warnings
+
       - name: Test with default features
         run: cargo test --all-targets --workspace
 
@@ -54,3 +60,9 @@ jobs:
 
       - name: Test less-strict-decoding feature
         run: cargo test --all-targets --workspace --features less-strict-decoding
+
+      - name: Test _experimental-integral-floats feature
+        run: cargo test --all-targets --workspace --features _experimental-integral-floats
+
+      - name: Test _experimental-integral-floats feature without default features
+        run: cargo test --all-targets --workspace --no-default-features --features _experimental-integral-floats

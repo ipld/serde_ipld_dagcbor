@@ -82,6 +82,24 @@ Sometimes it is desired that a CID is not accidentally deserialized into bytes. 
 The problem with that feature is, that it breaks Serde's derive attributes for [internally tagged enums](https://serde.rs/enum-representations.html#internally-tagged) (`#[serde(tag = "sometag")]`) and [untagged enums](https://serde.rs/enum-representations.html#untagged) (`#serde(untagged)`). If this feature is enabled and you still need similar functionality, you could implement a deserializer manually. Examples of how to do that are in the [enum example](examples/enums.rs).
 
 
+### `_experimental-integral-floats`
+
+This feature is experimental, it may change or be removed in a non-breaking release.
+
+It adds options to treat floats with an integral value as integers, both are off by default:
+
+ - `Deserializer::integral_floats(true)` decodes integers into `f32`/`f64` fields if they are exactly representable. That's all integers up to 2^24 (`f32`) or 2^53 (`f64`) in absolute value, larger ones only if they don't lose precision, e.g. 2^53 + 2 is representable as `f64`, 2^53 + 1 isn't. Integers below -2^63 are rejected. Integers decoded into other types, e.g. `i64` or `Ipld`, stay integers.
+ - `Serializer::integral_floats(true)` encodes floats with an integral value that fits into `u64`/`i64` as integers, e.g. `4.0` as `4`. Hence `Ipld::Float(4.0)` is decoded as `Ipld::Integer(4)`.
+
+`from_slice_integral_floats`/`from_reader_integral_floats` in `de` and `to_vec_integral_floats`/`to_writer_integral_floats` in `ser` enable the options, all other functions use the defaults.
+
+When serde buffers values (e.g. for untagged enums or `#[serde(flatten)]`), it converts numbers into floats itself, which may lose precision. Use `de::lossless_f32`/`de::lossless_f64` with `#[serde(deserialize_with = "…")]` for those fields.
+
+The options don't change what is valid DAG-CBOR. The encoded data is still valid DAG-CBOR, and only valid DAG-CBOR is decoded. DAG-CBOR distinguishes integers and floats though, so with `Serializer::integral_floats(true)` a value like `4.0` is encoded as the integer `4`. Other DAG-CBOR decoders see it as an integer, and the encoded bytes, and hence the CID, differ from the default encoding. The encoding is similar to the numeric reduction of [dCBOR], but floats are always encoded as 64-bit, NaN and Infinity are rejected, and integral floats encoded as floats are still accepted when decoding.
+
+[dCBOR]: https://datatracker.ietf.org/doc/draft-mcnally-deterministic-cbor/
+
+
 License
 -------
 
